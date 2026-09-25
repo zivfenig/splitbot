@@ -34,9 +34,9 @@ def valid_payload() -> dict:
         "confidence": "high",
         "amount": {"value": "140", "evidence": "140", "source": "message"},
         "currency": {"value": "ILS", "evidence": None, "source": "default"},
-        "payer": {"value": {"kind": "ids", "ids": [1]}, "evidence": None, "source": "default"},
+        "payer": {"value": {"kind": "known", "id": 1}, "evidence": None, "source": "default"},
         "participants": {
-            "value": {"kind": "ids", "ids": [1, 3]},
+            "value": {"only": [{"kind": "known", "id": 3}], "exclude": []},
             "evidence": "עם מיכל",
             "source": "message",
         },
@@ -62,8 +62,22 @@ def with_change(path: tuple, value) -> dict:
         with_change(("message_type",), "pizza"),
         with_change(("payer", "value"), {"kind": "ambiguous", "candidates": [2]}),
         with_change(("amount", "source"), "guess"),
+        with_change(("payer", "value"), {"kind": "ambiguous", "candidates": [2, 2]}),
+        with_change(("participants", "value", "only"), []),
+        with_change(("payer", "value"), {"kind": "maybe", "id": 1}),
+        with_change(("total_in_words",), "one hundred forty"),
     ],
-    ids=["currency_gbp", "unknown_subcategory", "unknown_message_type", "ambiguous_one_candidate", "source_guess"],
+    ids=[
+        "currency_gbp",
+        "unknown_subcategory",
+        "unknown_message_type",
+        "ambiguous_one_candidate",
+        "source_guess",
+        "ambiguous_duplicate_candidates",
+        "only_empty_list",
+        "unknown_member_ref_kind",
+        "extra_key",
+    ],
 )
 def test_extraction_rejects_values_outside_the_closed_lists(bad_payload):
     ExtractedExpense.model_validate(valid_payload())  # the base payload itself is fine

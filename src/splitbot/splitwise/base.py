@@ -1,7 +1,7 @@
 """The contract the rest of the app depends on. Nothing outside `splitwise/client.py`
 knows about Splitwise HTTP details, so the backend can be swapped (or faked in tests).
 
-Amounts are integers in agorot. Never float.
+Amounts are integers in minor units (agorot/cents). Never float.
 """
 
 from typing import Protocol
@@ -20,7 +20,7 @@ class BackendError(RuntimeError):
 class NewExpense(BaseModel):
     group_id: int
     description: str
-    total: int  # agorot
+    total: int  # minor units
     shares: list[Share]
     details: str = ""  # idempotency key goes here (Stage 3)
     currency_code: str = "ILS"
@@ -30,7 +30,7 @@ class BackendExpense(BaseModel):
     id: int
     group_id: int | None
     description: str
-    total: int  # agorot
+    total: int  # minor units
     currency_code: str
     details: str
     shares: list[Share]

@@ -36,6 +36,12 @@ So process and documentation matter as much as the code.
   "בלי X" / "without X" = everyone in the group except X.
   Both together ("עם מיכל ובלי דני") → the explicit list wins: author + Michal only.
   Neither → everyone (`source: "default"`).
+  The LLM never lists the whole group or computes set differences: it only reports what
+  the message says, as two optional lists: `only` ("עם X", may be missing) and `exclude`
+  ("בלי X"). Each named person is a member reference: a known ID, or "ambiguous" with
+  candidate IDs. The payer uses the same reference. CODE builds the final list of member
+  IDs: `only` present → author + `only` (`exclude` is ignored); else everyone minus
+  `exclude`; neither → everyone.
 - **Amount text:** a comma followed by exactly 3 digits is a thousands separator
   ("1,200" = 1200). A comma followed by 1–2 digits is a decimal separator
   ("38,90" = 38.90).
@@ -48,8 +54,10 @@ So process and documentation matter as much as the code.
   eating_out · other → other. The free-text description stays as written. Splitwise
   `category_id` mapping comes in Stage 3 from a script that fetches the real IDs
   (never guess them).
-- **Grounding:** every extracted field has `evidence` (exact substring of the message)
-  and `source` ("message" or "default"). A pure validator checks: evidence appears in
+- **Grounding:** every field quoted from the message (amount, currency, payer,
+  participants) has `evidence` (exact substring of the message) and `source` ("message"
+  or "default"). Subcategory, description and message_type are inferred, so they carry
+  no evidence. A pure validator checks: evidence appears in
   the message (after light normalization); the number in the amount's evidence equals
   the amount; a non-ILS currency has evidence; defaults are marked `source: "default"`.
   Any failed check → needs clarification, never silently accepted.

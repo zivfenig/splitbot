@@ -7,9 +7,15 @@ Amounts are integers in minor units (agorot/cents), never float. The one excepti
 from enum import StrEnum
 from typing import Annotated, Generic, Literal, TypeVar
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 T = TypeVar("T")
+
+
+class Strict(BaseModel):
+    """LLM-facing models: unknown keys fail loudly instead of being silently dropped."""
+
+    model_config = ConfigDict(extra="forbid")
 
 
 class Currency(StrEnum):
@@ -87,23 +93,41 @@ class Member(BaseModel):
     name: str
 
 
-class MemberIds(BaseModel):
-    kind: Literal["ids"] = "ids"
-    ids: list[int] = Field(min_length=1)
+class KnownMember(Strict):
+    kind: Literal["known"] = "known"
+    id: int
 
 
-class Ambiguous(BaseModel):
+class Ambiguous(Strict):
+    """The LLM could not tell which member was meant (e.g. two Danis): the bot asks."""
+
     kind: Literal["ambiguous"] = "ambiguous"
     candidates: list[int] = Field(min_length=2)
 
+    @field_validator("candidates")
+    @classmethod
+    def candidates_are_distinct(cls, ids: list[int]) -> list[int]:
+        if len(set(ids)) != len(ids):
+            raise ValueError("candidates must be distinct")
+        return ids
 
-MemberChoice = Annotated[MemberIds | Ambiguous, Field(discriminator="kind")]
+
+# One named person: a known ID, or "ambiguous" with candidates.
+MemberRef = Annotated[KnownMember | Ambiguous, Field(discriminator="kind")]
+
+
+class Participants(Strict):
+    """What the message says about who shares the expense. The LLM reports; CODE decides
+    (validation.resolve_participants): `only` wins over `exclude`, neither = everyone."""
+
+    only: list[MemberRef] | None = Field(default=None, min_length=1)  # "עם X" / "with X"
+    exclude: list[MemberRef] = []  # "בלי X" / "without X"
 
 
 # --- extraction (LLM output, untrusted until validated) --------------------
 
 
-class Evidenced(BaseModel, Generic[T]):
+class Evidenced(Strict, Generic[T]):
     """A value plus the exact text it came from. `source: "default"` = not in the message."""
 
     value: T
@@ -111,13 +135,13 @@ class Evidenced(BaseModel, Generic[T]):
     source: Literal["message", "default"]
 
 
-class ExtractedExpense(BaseModel):
+class ExtractedExpense(Strict):
     message_type: MessageType
     confidence: Confidence
     amount: Evidenced[str] | None = None  # text as written, e.g. "38.90"; money.py parses it
     currency: Evidenced[Currency] | None = None
-    payer: Evidenced[MemberChoice] | None = None
-    participants: Evidenced[MemberChoice] | None = None
+    payer: Evidenced[MemberRef] | None = None
+    participants: Evidenced[Participants] | None = None
     subcategory: Subcategory | None = None
     description: str | None = None  # free text, kept as written
 
