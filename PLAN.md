@@ -47,6 +47,9 @@ Build:
 - Datasets: ~40 golden cases + ~15 adversarial (two people named Dani, "oops it was 260",
   prompt injection, chat that looks like an expense, foreign currency).
   ~80% Hebrew, ~20% English.
+- **Must-have eval cases** (added via `/add-eval-case` once the models exist; I verify each):
+  - "פיצה עם מיכל ובלי דני 140" → ₪140 (currency: default); participants: author + Michal
+    only (the explicit list wins over the exclusion).
 - `run_evals.py`: per-field accuracy (amount, payer, participants, category, type),
   list of failures, consistency check (each case 3×), cost and latency per case.
   Saves to `results/<prompt>_<date>.json`.

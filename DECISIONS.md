@@ -30,4 +30,5 @@ BUG-CAUGHT · BUG-MISSED · PROMPT-CHANGE · CUT (dropped from scope)
 | 2026-09-25 | DECISION | Participants rule: "with X" = author + X only; "without X" = everyone except X; both → the explicit list wins; neither → everyone | One unambiguous rule for the Stage 2 prompt and evals; conflicts resolve to the narrower, safer list |
 | 2026-09-25 | DECISION | Amount text: comma + exactly 3 digits = thousands ("1,200" = 1200); comma + 1–2 digits = decimal ("38,90" = 38.90) | Common in Hebrew/European writing; tested in money tests |
 | 2026-09-25 | DECISION | Stage 1 test budget: ~10 unit tests total, parametrized; more only after explaining why | Tests should read like product rules, not test the libraries |
+| 2026-09-25 | DECISION | `confidence` is an enum (high/medium/low), not a float | LLM self-reported float confidence is poorly calibrated, and policy only needs "low → strictest" |
 | | | | |

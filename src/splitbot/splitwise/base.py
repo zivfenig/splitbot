@@ -8,20 +8,13 @@ from typing import Protocol
 
 from pydantic import BaseModel
 
+from splitbot.models import Member, Share
+
+__all__ = ["BackendError", "BackendExpense", "ExpenseBackend", "Member", "NewExpense", "Share"]
+
 
 class BackendError(RuntimeError):
     """The backend refused or failed the request (includes HTTP 200 with `errors`)."""
-
-
-class Member(BaseModel):
-    id: int
-    name: str
-
-
-class Share(BaseModel):
-    user_id: int
-    paid: int  # agorot
-    owed: int  # agorot
 
 
 class NewExpense(BaseModel):
