@@ -9,15 +9,10 @@ from decimal import Decimal
 
 import httpx
 
+from splitbot.money import format_amount
 from splitbot.splitwise.base import BackendError, BackendExpense, Member, NewExpense, Share
 
 BASE_URL = "https://secure.splitwise.com/api/v3.0/"
-
-
-def agorot_to_str(agorot: int) -> str:
-    sign = "-" if agorot < 0 else ""
-    whole, frac = divmod(abs(agorot), 100)
-    return f"{sign}{whole}.{frac:02d}"
 
 
 def str_to_agorot(value: str) -> int:
@@ -85,7 +80,7 @@ class SplitwiseClient:
         if sum(s.owed for s in expense.shares) != expense.total:
             raise BackendError("Owed shares do not sum to the total")
         body: dict = {
-            "cost": agorot_to_str(expense.total),
+            "cost": format_amount(expense.total),
             "description": expense.description,
             "details": expense.details,
             "date": datetime.now(timezone.utc).isoformat(),
@@ -94,8 +89,8 @@ class SplitwiseClient:
         }
         for i, share in enumerate(expense.shares):
             body[f"users__{i}__user_id"] = share.user_id
-            body[f"users__{i}__paid_share"] = agorot_to_str(share.paid)
-            body[f"users__{i}__owed_share"] = agorot_to_str(share.owed)
+            body[f"users__{i}__paid_share"] = format_amount(share.paid)
+            body[f"users__{i}__owed_share"] = format_amount(share.owed)
         data = self._call("POST", "create_expense", json=body)
         created = data.get("expenses") or []
         if len(created) != 1:

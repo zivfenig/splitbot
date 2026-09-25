@@ -2,8 +2,9 @@ import httpx
 import pytest
 import respx
 
+from splitbot.money import format_amount
 from splitbot.splitwise.base import BackendError, NewExpense, Share
-from splitbot.splitwise.client import BASE_URL, SplitwiseClient, agorot_to_str, str_to_agorot
+from splitbot.splitwise.client import BASE_URL, SplitwiseClient, str_to_agorot
 
 EXPENSE = NewExpense(
     group_id=7,
@@ -19,8 +20,8 @@ def client():
 
 
 def test_agorot_are_formatted_without_floats():
-    assert agorot_to_str(1001) == "10.01"
-    assert agorot_to_str(5) == "0.05"
+    assert format_amount(1001) == "10.01"
+    assert format_amount(5) == "0.05"
     assert str_to_agorot("10.0") == 1000
 
 

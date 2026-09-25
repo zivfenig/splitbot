@@ -7,7 +7,7 @@ Amounts are integers in minor units (agorot/cents), never float. The one excepti
 from enum import StrEnum
 from typing import Annotated, Generic, Literal, TypeVar
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 T = TypeVar("T")
 
@@ -124,6 +124,14 @@ class Participants(Strict):
     exclude: list[MemberRef] = []  # "בלי X" / "without X"
 
 
+class PersonAmount(Strict):
+    """One stated amount: "דני 50". `amount` is text as written; money.py parses it."""
+
+    member: MemberRef
+    amount: str
+    evidence: str
+
+
 # --- extraction (LLM output, untrusted until validated) --------------------
 
 
@@ -142,6 +150,7 @@ class ExtractedExpense(Strict):
     currency: Evidenced[Currency] | None = None
     payer: Evidenced[MemberRef] | None = None
     participants: Evidenced[Participants] | None = None
+    exact_amounts: list[PersonAmount] | None = Field(default=None, min_length=1)  # else equal split
     subcategory: Subcategory | None = None
     description: str | None = None  # free text, kept as written
 
@@ -183,6 +192,16 @@ class Expense(BaseModel):
     prompt_version: str
     state: ExpenseState = ExpenseState.pending_approval
     splitwise_id: int | None = None
+
+    @model_validator(mode="after")
+    def shares_sum_exactly_to_total(self) -> "Expense":
+        if self.total <= 0:
+            raise ValueError("total must be positive")
+        if sum(s.paid for s in self.shares) != self.total:
+            raise ValueError("paid shares must sum to the total")
+        if sum(s.owed for s in self.shares) != self.total:
+            raise ValueError("owed shares must sum to the total")
+        return self
 
     @property
     def category(self) -> Category:

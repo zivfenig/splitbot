@@ -50,6 +50,8 @@ Build:
 - **Must-have eval cases** (added via `/add-eval-case` once the models exist; I verify each):
   - "פיצה עם מיכל ובלי דני 140" → ₪140 (currency: default); participants: author + Michal
     only (the explicit list wins over the exclusion).
+  - "150: דני 50, משה 60" → total ₪150; exact amounts Dani 50, Moshe 60; the author's
+    remainder (40) is computed by code and shown in the confirmation.
 - `run_evals.py`: per-field accuracy (amount, payer, participants, category, type),
   list of failures, consistency check (each case 3×), cost and latency per case.
   Saves to `results/<prompt>_<date>.json`.

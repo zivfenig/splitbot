@@ -42,6 +42,16 @@ So process and documentation matter as much as the code.
   candidate IDs. The payer uses the same reference. CODE builds the final list of member
   IDs: `only` present → author + `only` (`exclude` is ignored); else everyone minus
   `exclude`; neither → everyone.
+- **Exact amounts** ("150: דני 50, משה 60"): the LLM reports per-person amounts as written
+  (member reference + amount text + evidence). CODE checks they sum exactly to the total;
+  if not → the bot asks, never auto-fix. Author not mentioned and stated < total → the
+  remainder is the author's share (shown in the author confirmation). Negative remainder,
+  or author listed and sum ≠ total → the bot asks. No amounts → equal split (default).
+- **Approval details:** a non-ILS expense always needs `all` (amount thresholds are ILS
+  only). A rule with both a category and a min_amount means AND. Several matching rules
+  → the strictest wins (`all` > `author` > `auto`).
+- **Crash recovery:** an expense stuck in `submitting` is never blindly re-sent: first
+  search Splitwise for our idempotency key; if found, mark it `submitted`.
 - **Amount text:** a comma followed by exactly 3 digits is a thousands separator
   ("1,200" = 1200). A comma followed by 1–2 digits is a decimal separator
   ("38,90" = 38.90).
@@ -153,7 +163,9 @@ scripts/             # smoke tests & one-off tools
 
 ## Money rules
 - Amounts are integers in minor units (agorot/cents). Never float.
-- Shares must sum exactly to the total. Leftover minor units from rounding go to the payer.
+- Shares must sum exactly to the total. Leftover minor units from rounding go to the payer
+  if the payer is a participant; otherwise to the first participant in group order (a
+  payer who is not a participant owes 0).
 - Users always see and write shekels (e.g. "38.90"). Agorot are internal only; convert
   at the edges (LLM output, Splitwise API, bot replies).
 

@@ -3,7 +3,7 @@ import copy
 import pytest
 from pydantic import ValidationError
 
-from splitbot.models import ExtractedExpense, Subcategory, category_of
+from splitbot.models import Currency, Expense, ExtractedExpense, Share, Subcategory, category_of
 
 # Agreed mapping (CLAUDE.md "Categories"). Rules use the main category.
 EXPECTED_CATEGORY = {
@@ -66,6 +66,7 @@ def with_change(path: tuple, value) -> dict:
         with_change(("participants", "value", "only"), []),
         with_change(("payer", "value"), {"kind": "maybe", "id": 1}),
         with_change(("total_in_words",), "one hundred forty"),
+        with_change(("exact_amounts",), [{"member": {"kind": "known", "id": 2}, "amount": "50"}]),
     ],
     ids=[
         "currency_gbp",
@@ -77,9 +78,43 @@ def with_change(path: tuple, value) -> dict:
         "only_empty_list",
         "unknown_member_ref_kind",
         "extra_key",
+        "exact_amount_without_evidence",
     ],
 )
 def test_extraction_rejects_values_outside_the_closed_lists(bad_payload):
     ExtractedExpense.model_validate(valid_payload())  # the base payload itself is fine
     with pytest.raises(ValidationError):
         ExtractedExpense.model_validate(bad_payload)
+
+
+def expense(total: int, shares: list[Share]) -> Expense:
+    return Expense(
+        chat_id=1,
+        message_id=1,
+        group_id=1,
+        author_id=1,
+        description="פיצה",
+        total=total,
+        currency=Currency.ILS,
+        subcategory=Subcategory.restaurant,
+        shares=shares,
+        prompt_version="extract_v1",
+    )
+
+
+@pytest.mark.parametrize(
+    "total, shares",
+    [
+        (1000, [Share(user_id=1, paid=900, owed=500), Share(user_id=2, paid=0, owed=500)]),
+        (1000, [Share(user_id=1, paid=1000, owed=500), Share(user_id=2, paid=0, owed=400)]),
+        (0, [Share(user_id=1, paid=0, owed=0)]),
+        (-1000, [Share(user_id=1, paid=-1000, owed=-1000)]),
+        (1000, []),
+    ],
+    ids=["paid_not_total", "owed_not_total", "zero_total", "negative_total", "no_shares"],
+)
+def test_expense_rejects_shares_that_do_not_sum_to_total(total, shares):
+    good = [Share(user_id=1, paid=1000, owed=500), Share(user_id=2, paid=0, owed=500)]
+    expense(1000, good)  # the base expense itself is fine
+    with pytest.raises(ValidationError):
+        expense(total, shares)
