@@ -8,7 +8,7 @@ Rule: a stage is done only when *I* verified it (not when tests are green).
 ## Stage 0 — Setup & smoke test (Fri) — MUST
 Build:
 - Repo, venv, `pyproject.toml`, folder layout from CLAUDE.md, `.env.example`, `.gitignore`.
-- Keys: Anthropic API, Telegram bot (BotFather), Splitwise API key.
+- Keys: OpenAI API, Telegram bot (BotFather), Splitwise API key.
 - Test Splitwise group + test Telegram group with 2–3 friends (or test accounts).
 - `scripts/smoke_splitwise.py`: create one expense in the test group, read it back, delete it.
 
@@ -77,7 +77,7 @@ Final balances must match the expected balances to the agora.
 Build:
 - `/ask ...` → agent with MCP tools. Read tools are free; any write goes through approval.
 - 2–3 tasks: "how much did we spend on food?", "who owes whom?",
-  "close the trip" (settlement with minimum transfers — computed in code).
+  "end-of-month settle up" (settlement with minimum transfers — computed in code).
 - Trajectory evals (~10 tasks): expected tools, forbidden tools, max steps, correct answer,
   cost per successful task.
 

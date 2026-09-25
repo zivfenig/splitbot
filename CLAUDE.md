@@ -3,7 +3,8 @@
 ## What we are building
 A Telegram bot that turns group-chat messages ("paid 240 for sushi, without Dani")
 into Splitwise expenses — safely. Later stage: an "agent mode" that answers questions
-and runs multi-step tasks ("close the trip") using tools from our own MCP server.
+and runs multi-step tasks ("end-of-month settle up") using tools from our own MCP server.
+Demo scenario: a shared apartment (groceries, bills, rent) — not a trip.
 
 This is also a job-assignment project. The reviewers care about HOW I work with AI:
 clear problem framing, iteration, verifying AI output, and engineering judgment.
@@ -34,8 +35,16 @@ So process and documentation matter as much as the code.
 7. **No new dependencies or frameworks without asking.** Keep the stack boring.
 
 ## Stack
-Python 3.12 · pydantic v2 · anthropic SDK · python-telegram-bot · mcp (FastMCP)
-· httpx · sqlite3 · pytest (+ respx for HTTP mocking). Secrets in `.env` only.
+Python 3.12 · pydantic v2 · openai SDK · python-telegram-bot · mcp (FastMCP)
+· httpx · sqlite3 · python-dotenv · pytest (+ respx for HTTP mocking).
+Secrets in `.env` only.
+- LLM provider is OpenAI (not Anthropic).
+- Splitwise: NO third-party SDK. Thin httpx client (Bearer API key), because we need
+  full control over errors, retries and idempotency. Always send `currency_code: "ILS"`
+  explicitly; never rely on group defaults.
+- The Splitwise layer is an ADAPTER behind an interface (the API needs Splitwise Pro;
+  the trial is 7 days). Workflow, MCP server and bot depend on the interface, never
+  on Splitwise HTTP details, so the backend can be swapped (e.g. a fake/local ledger).
 
 ## File layout (keep it this way)
 ```
@@ -46,10 +55,12 @@ src/splitbot/
   state.py           # expense state machine — pure
   store.py           # SQLite: processed messages (idempotency), expenses, outbox
   llm/
-    client.py        # thin wrapper around the Anthropic API
+    client.py        # thin wrapper around the OpenAI API
     extractor.py     # message → ExtractedExpense (loads prompt by version)
+  config.py          # loads .env (python-dotenv); clear error on missing keys
   splitwise/
-    client.py        # HTTP client: errors, retries, timeouts
+    base.py          # ExpenseBackend Protocol: the contract the bot depends on
+    client.py        # httpx implementation of ExpenseBackend: errors, retries, timeouts
   mcp_server/
     server.py        # MCP tools over Splitwise; guardrails live HERE too
   agent/
@@ -88,6 +99,8 @@ scripts/             # smoke tests & one-off tools
 ## Money rules
 - Amounts are integers in agorot (or cents). Never float.
 - Shares must sum exactly to the total. Leftover agorot from rounding go to the payer.
+- Users always see and write shekels (e.g. "38.90"). Agorot are internal only; convert
+  at the edges (LLM output, Splitwise API, bot replies).
 
 ## Commands
 - Unit + integration tests: `pytest`
