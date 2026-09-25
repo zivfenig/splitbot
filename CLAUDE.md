@@ -34,6 +34,12 @@ So process and documentation matter as much as the code.
    say so and suggest how to check, instead of assuming.
 7. **No new dependencies or frameworks without asking.** Keep the stack boring.
 
+## Workflow
+- Each step: `/implement` → `/review` → fix. End of stage: `/checkpoint`.
+- Prompt changes ONLY via `/new-prompt-version`. Eval cases ONLY via `/add-eval-case`.
+- A Stop hook runs `pytest` and blocks finishing with red tests. Make ONE fix attempt,
+  then report exactly what fails and why. Never weaken, skip or delete a test to pass.
+
 ## Stack
 Python 3.12 · pydantic v2 · openai SDK · python-telegram-bot · mcp (FastMCP)
 · httpx · sqlite3 · python-dotenv · pytest (+ respx for HTTP mocking).

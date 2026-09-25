@@ -20,5 +20,18 @@
       "Bash(env)",
       "Bash(printenv*)"
     ]
+  },
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/pytest_on_stop.py\"",
+            "timeout": 200
+          }
+        ]
+      }
+    ]
   }
 }

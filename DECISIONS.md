@@ -18,4 +18,5 @@ BUG-CAUGHT · BUG-MISSED · PROMPT-CHANGE · CUT (dropped from scope)
 | 2026-09-25 | BUG-CAUGHT | Claude wrote the Splitwise endpoints from memory and flagged them as unverified. I checked the official docs: JSON body is OK, but delete_expense also returns 200 on failure (must check success), and deletes are soft (deleted_at) | Added handling plus a test for delete with success: false. Lesson: verify API assumptions against the docs, not the model's memory |
 | 2026-09-25 | DECISION | .env is git-ignored and Claude Code is denied reading it | Secrets are protected from the AI too, not only from git |
 | 2026-09-25 | DECISION | Stage 0 verified end to end: a real ₪10 expense was created, read back and soft-deleted in "SplitBot Test"; Telegram send worked | Money rule added: users see shekels, agorot are internal, convert only at the edges (LLM output, Splitwise API, bot replies) |
+| 2026-09-25 | DECISION | Critical rules are enforced, not only requested: Stop hook runs pytest; test-first with human-approved test names; independent reviewer subagent. | |
 | | | | |
