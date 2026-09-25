@@ -105,7 +105,9 @@ So process and documentation matter as much as the code.
 Python 3.12 · pydantic v2 · openai SDK · python-telegram-bot · mcp (FastMCP)
 · httpx · sqlite3 · python-dotenv · pytest (+ respx for HTTP mocking).
 Secrets in `.env` only.
-- LLM provider is OpenAI (not Anthropic).
+- LLM provider is OpenAI (not Anthropic). Extraction uses temperature 0, read from config
+  (`OPENAI_TEMPERATURE`, default 0); the model name and temperature are recorded in every
+  eval result file.
 - Splitwise: NO third-party SDK. Thin httpx client (Bearer API key), because we need
   full control over errors, retries and idempotency. Always send `currency_code: "ILS"`
   explicitly; never rely on group defaults.
@@ -166,6 +168,15 @@ scripts/             # smoke tests & one-off tools
 - Eval datasets: you may DRAFT cases, but I verify every expected answer by hand.
   Mark verified cases with `"verified": true`. Never change an expected answer to
   make a test pass — tell me instead.
+- Expected answers are verified ONLY by the human, never by a model (otherwise the eval
+  measures how much two models agree, not how right the extractor is).
+- Eval messages: about a third written by the human (`source: "user"`), the rest drafted by
+  Claude (`source: "synthetic"`). Claude drafting and OpenAI extracting are different model
+  families, on purpose. Drafts must be varied: typos, slang, emojis, word order, mixed
+  Hebrew/English, like real apartment chats. Real bot failures from Stage 4 are added as
+  `source: "real-failure"`.
+- No leakage: few-shot examples inside a prompt must never appear in the eval sets.
+  `run_evals.py` fails if any eval text appears in the prompt file.
 
 ## Money rules
 - Amounts are integers in minor units (agorot/cents). Never float.

@@ -46,7 +46,10 @@ Build:
 - The LLM gets group members (id + name) and returns member IDs, or "ambiguous" + candidates.
 - Datasets: ~40 golden cases + ~15 adversarial (two people named Dani, "oops it was 260",
   prompt injection, chat that looks like an expense, foreign currency).
-  ~80% Hebrew, ~20% English.
+  ~80% Hebrew, ~20% English. About a third of the messages are written by me
+  (`source: "user"`), the rest drafted by Claude and varied (typos, slang, emojis, mixed
+  languages). Expected answers: verified by me only.
+- `run_evals.py` fails if any eval text appears in the prompt file (no few-shot leakage).
 - **Must-have eval cases** (added via `/add-eval-case` once the models exist; I verify each):
   - "פיצה עם מיכל ובלי דני 140" → ₪140 (currency: default); participants: author + Michal
     only (the explicit list wins over the exclusion).
@@ -54,7 +57,8 @@ Build:
     remainder (40) is computed by code and shown in the confirmation.
 - `run_evals.py`: per-field accuracy (amount, payer, participants, category, type),
   list of failures, consistency check (each case 3×), cost and latency per case.
-  Saves to `results/<prompt>_<date>.json`.
+  Saves to `results/<prompt>_<date>.json`, with the model name and temperature recorded.
+  (Stage 6 may compare JSON mode with strict Structured Outputs.)
 
 I verify: I label/approve every expected answer myself, then read the failure list.
 

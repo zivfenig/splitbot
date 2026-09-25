@@ -20,7 +20,7 @@ mark a case verified yourself.
    {"id": "he-042", "text": "...", "sender": "m_ziv",
     "lang": "he|en|mixed",
     "tags": ["names", "currency", "correction", "adversarial", ...],
-    "source": "synthetic|real-failure",
+    "source": "user|synthetic|real-failure",
     "expected": { ...fields with value, evidence, source... },
     "notes": "why this case matters",
     "verified": false}
