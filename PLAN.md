@@ -18,15 +18,22 @@ I verify: the expense appears in the Splitwise app, then disappears.
 
 ## Stage 1 — Deterministic core (Fri) — MUST
 Build (pure functions, no network):
-- `models.py`: ExtractedExpense, Expense, Share, ApprovalRule, GroupConfig.
-- `money.py`: equal split, "everyone except X", exact shares, rounding (leftover → payer).
-- `policy.py`: modes `auto` / `author` / `all`; rules by category and by amount;
-  unknown or low-confidence category → strictest rule.
+- `models.py`: ExtractedExpense (fields with evidence + source, member IDs or
+  "ambiguous"), Expense, Share, ApprovalRule, GroupConfig; currencies (ILS/USD/EUR);
+  closed subcategory list with subcategory → main category mapping in code.
+- Member-ID validation: every returned ID is a real member; ambiguous/invalid → ask.
+- `money.py`: minor units, currencies, amount parse/format ("38.90"), equal split,
+  "everyone except X", exact shares, rounding (leftover → payer).
+- Evidence validator: evidence is in the message, amount number matches, non-ILS currency
+  has evidence, defaults marked `source: "default"`. Failure → needs clarification.
+- `policy.py`: modes `author` (default) / `all` / `auto` (opt-in only); rules by main
+  category and by amount; unknown or low-confidence category → strictest rule.
 - `state.py`: `pending_approval → approved → submitting → submitted`,
   plus `rejected`, `expired`, `failed`. Illegal transitions raise errors.
 - `store.py`: SQLite. Processed message IDs (idempotency), expenses, outbox.
 
-Tests: `tests/unit/` only.
+Tests: `tests/unit/` only, about 10 for the whole stage (validation 2–3, money 2,
+policy 2, state + duplicates 2), parametrized.
 I verify: I read the list of test names — it should read like the rules of the product.
 
 ---
@@ -36,8 +43,10 @@ Build:
 - `prompts/extract_v1.md` + `llm/extractor.py`: LLM → JSON → Pydantic.
   Invalid → one retry with the error message → still invalid → `needs_clarification`.
 - Output includes `message_type` (new / correction / delete / chat) and `confidence`.
+- The LLM gets group members (id + name) and returns member IDs, or "ambiguous" + candidates.
 - Datasets: ~40 golden cases + ~15 adversarial (two people named Dani, "oops it was 260",
   prompt injection, chat that looks like an expense, foreign currency).
+  ~80% Hebrew, ~20% English.
 - `run_evals.py`: per-field accuracy (amount, payer, participants, category, type),
   list of failures, consistency check (each case 3×), cost and latency per case.
   Saves to `results/<prompt>_<date>.json`.
@@ -48,6 +57,7 @@ I verify: I label/approve every expected answer myself, then read the failure li
 
 ## Stage 3 — Splitwise client + MCP server (Sat) — MUST
 Build:
+- Script that fetches the real Splitwise category IDs → our subcategory mapping (don't guess IDs).
 - `splitwise/client.py`: timeouts; `429` → retry with backoff;
   **HTTP 200 with non-empty `errors` = failure**.
 - Idempotency across retries: write our key (`sb:<chat_id>:<msg_id>`) into the expense
@@ -64,7 +74,8 @@ I verify: smoke run against the real test group.
 
 ## Stage 4 — Telegram bot (Sat evening) — MUST
 Build:
-- Message → workflow → approval buttons (✓ / ✗) → Splitwise.
+- Message → workflow → approval buttons (✓ / ✗) → Splitwise. Bot speaks Hebrew.
+  Default: the author confirms ("דיווחת על הוצאה של ₪240 על פיצה, מחולקת בין כולם. נכון?").
 - Commands: `/rules` (e.g. `/rules rent=all`, `/rules over_500=all`), `/pending`.
 - Corrections update the existing expense; duplicates are asked about, not added.
 
@@ -75,7 +86,10 @@ Final balances must match the expected balances to the agora.
 
 ## Stage 5 — Agent mode (Sun) — SHOULD
 Build:
-- `/ask ...` → agent with MCP tools. Read tools are free; any write goes through approval.
+- Small dashboard (tech decided in Stage 5, keep it minimal): 2–3 charts (by category,
+  by month, balances) + a chat panel that talks to the agent, which uses our MCP tools.
+  Telegram = recording + approvals; dashboard = insights + questions (no `/ask` in Telegram).
+- Agent with MCP tools. Read tools are free; any write goes through approval.
 - 2–3 tasks: "how much did we spend on food?", "who owes whom?",
   "end-of-month settle up" (settlement with minimum transfers — computed in code).
 - Trajectory evals (~10 tasks): expected tools, forbidden tools, max steps, correct answer,

@@ -19,4 +19,15 @@ BUG-CAUGHT · BUG-MISSED · PROMPT-CHANGE · CUT (dropped from scope)
 | 2026-09-25 | DECISION | .env is git-ignored and Claude Code is denied reading it | Secrets are protected from the AI too, not only from git |
 | 2026-09-25 | DECISION | Stage 0 verified end to end: a real ₪10 expense was created, read back and soft-deleted in "SplitBot Test"; Telegram send worked | Money rule added: users see shekels, agorot are internal, convert only at the edges (LLM output, Splitwise API, bot replies) |
 | 2026-09-25 | DECISION | Critical rules are enforced, not only requested: Stop hook runs pytest; test-first with human-approved test names; independent reviewer subagent. | |
+| 2026-09-25 | DECISION | Members resolved by the LLM from a list of (id, name), returned as IDs; "ambiguous" + candidates if unsure. No alias lists | Handles nicknames/transliterations (דניאל → דני) without maintenance; code still validates every ID and asks on ambiguous/invalid |
+| 2026-09-25 | DECISION | Default approval = author confirms with buttons; `all` for rules (rent, bills, big amounts); `auto` opt-in only | Safe by default; the person who reported is the natural one to confirm |
+| 2026-09-25 | DECISION | Bot speaks Hebrew; LLM extracts Hebrew and English; evals ~80% Hebrew / ~20% English | Matches how the group actually writes |
+| 2026-09-25 | DECISION | Currencies: closed list ILS/USD/EUR, default ILS, recorded in original currency, no conversion; money in minor units, users see "38.90" | No FX guessing; edges convert, core stays integer |
+| 2026-09-25 | DECISION | Closed subcategory list; main category derived in code; Splitwise category IDs fetched by script in Stage 3 | Subcategory and category can never contradict; IDs are never guessed |
+| 2026-09-25 | DECISION | Grounding: every field has evidence (substring of message) + source (message/default); pure validator; failure → clarification. Limit: evidence proves the text exists, not that the interpretation is right | Catches hallucinated amounts/currencies deterministically; the limit goes in "what's NOT tested" |
+| 2026-09-25 | DECISION | PLAN Stage 5: agent lives in a small dashboard (charts + chat), not `/ask` in Telegram | Telegram = recording + approvals; dashboard = insights + questions. Tech decided in Stage 5 |
+| 2026-09-25 | DECISION | Added validation.py (pure member-ID + evidence validators) to the file layout. Claude asked first | Keeps models.py to contracts and money.py to money |
+| 2026-09-25 | DECISION | Participants rule: "with X" = author + X only; "without X" = everyone except X; both → the explicit list wins; neither → everyone | One unambiguous rule for the Stage 2 prompt and evals; conflicts resolve to the narrower, safer list |
+| 2026-09-25 | DECISION | Amount text: comma + exactly 3 digits = thousands ("1,200" = 1200); comma + 1–2 digits = decimal ("38,90" = 38.90) | Common in Hebrew/European writing; tested in money tests |
+| 2026-09-25 | DECISION | Stage 1 test budget: ~10 unit tests total, parametrized; more only after explaining why | Tests should read like product rules, not test the libraries |
 | | | | |
