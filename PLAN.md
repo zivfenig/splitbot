@@ -51,8 +51,10 @@ Build:
   languages). Expected answers: verified by me only.
 - `run_evals.py` fails if any eval text appears in the prompt file (no few-shot leakage).
 - **Must-have eval cases** (added via `/add-eval-case` once the models exist; I verify each):
-  - "פיצה עם מיכל ובלי דני 140" → ₪140 (currency: default); participants: author + Michal
-    only (the explicit list wins over the exclusion).
+  - "פיצה עם מיכל ובלי דני 140" → ₪140 (currency: default); only=[Michal], exclude=[Dani]
+    → author + Michal.
+  - "שילמתי 100 על הפיצה של דני ומיכל" → ₪100; only=[Dani, Michal], exclude=[author]
+    (evidence "של דני ומיכל") → Dani + Michal, 50 each; the author paid and owes 0.
   - "150: דני 50, משה 60" → total ₪150; exact amounts Dani 50, Moshe 60; the author's
     remainder (40) is computed by code and shown in the confirmation.
 - `run_evals.py`: per-field accuracy (amount, payer, participants, category, type),

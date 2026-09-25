@@ -34,14 +34,16 @@ So process and documentation matter as much as the code.
 - **Participants** (used in the Stage 2 prompt and evals):
   "עם X" / "with X" = an explicit list: only the author + X.
   "בלי X" / "without X" = everyone in the group except X.
-  Both together ("עם מיכל ובלי דני") → the explicit list wins: author + Michal only.
+  Both together ("עם מיכל ובלי דני") → author + Michal (the exclusion applies too).
+  Exclusions ALWAYS apply, also to the author: "שילמתי 100 על הפיצה של דני ומיכל" →
+  only=[Dani, Michal], exclude=[author] → Dani + Michal, 50 each; the author paid and owes 0.
   Neither → everyone (`source: "default"`).
   The LLM never lists the whole group or computes set differences: it only reports what
   the message says, as two optional lists: `only` ("עם X", may be missing) and `exclude`
   ("בלי X"). Each named person is a member reference: a known ID, or "ambiguous" with
   candidate IDs. The payer uses the same reference. CODE builds the final list of member
-  IDs: `only` present → author + `only` (`exclude` is ignored); else everyone minus
-  `exclude`; neither → everyone.
+  IDs: `only` present → (author + `only`) − `exclude`; else everyone − `exclude`;
+  neither → everyone.
 - **Exact amounts** ("150: דני 50, משה 60"): the LLM reports per-person amounts as written
   (member reference + amount text + evidence). CODE checks they sum exactly to the total;
   if not → the bot asks, never auto-fix. Author not mentioned and stated < total → the

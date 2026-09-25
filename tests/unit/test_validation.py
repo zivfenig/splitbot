@@ -26,17 +26,29 @@ def ambiguous(*candidates: int) -> dict:
         ({"only": [known(1)]}, [1]),
         ({"only": [known(3)], "exclude": [known(2)]}, [1, 3]),
         ({"exclude": [known(1)]}, [2, 3, 4]),
+        # exclusions always apply, also to the `only` list
+        ({"only": [known(2), known(3)], "exclude": [known(1)]}, [2, 3]),  # "the pizza of Dani and Moshe"
+        ({"only": [known(3), known(4)], "exclude": [known(3)]}, [1, 4]),
+        # nothing left (or only the author): the resolver returns the list, the workflow must ask
+        ({"exclude": [known(1), known(2), known(3), known(4)]}, []),
+        ({"only": [known(1)], "exclude": [known(1)]}, []),
+        ({"only": [known(3)], "exclude": [known(3)]}, [1]),
     ],
     ids=[
         "neither_means_everyone",
         "exclude_means_everyone_except",
         "only_means_author_plus_listed",
         "only_author_appears_once",
-        "explicit_only_list_wins_over_exclude",
+        "only_and_exclude_are_both_applied",
         "excluding_the_author_removes_the_author",
+        "author_pays_for_others_and_owes_nothing",
+        "exclusion_also_removes_someone_from_the_only_list",
+        "excluding_everyone_gives_an_empty_list",
+        "only_the_author_but_excluded_gives_an_empty_list",
+        "only_and_exclude_the_same_person_leaves_the_author",
     ],
 )
-def test_participants_are_built_by_code_and_explicit_list_wins(raw, expected):
+def test_participants_are_built_by_code_from_only_and_exclude(raw, expected):
     participants = Participants.model_validate(raw)
     assert resolve_participants(participants, AUTHOR, MEMBERS) == expected
 

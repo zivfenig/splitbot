@@ -118,7 +118,8 @@ MemberRef = Annotated[KnownMember | Ambiguous, Field(discriminator="kind")]
 
 class Participants(Strict):
     """What the message says about who shares the expense. The LLM reports; CODE decides
-    (validation.resolve_participants): `only` wins over `exclude`, neither = everyone."""
+    (validation.resolve_participants): (author + `only`) - `exclude`, or everyone - `exclude`
+    without `only`; neither = everyone."""
 
     only: list[MemberRef] | None = Field(default=None, min_length=1)  # "עם X" / "with X"
     exclude: list[MemberRef] = []  # "בלי X" / "without X"

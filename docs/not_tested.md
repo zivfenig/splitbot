@@ -13,6 +13,9 @@ Receipt photos, voice notes, large groups, real payments.
 - **Foreign-currency check is a keyword heuristic.** It catches `$ € £`, USD/EUR/GBP and the
   common Hebrew words; it can still miss unusual wording, and a default ILS can hide it.
 - **Subcategory, description and message_type are inferred**, so they carry no evidence.
+- **Participants have ONE evidence string for the whole field, not one per member**, so a
+  person wrongly added to `only` or `exclude` can still pass grounding (the evidence exists,
+  it just does not cover that person).
 
 **Handled by the Stage 4 workflow (see PLAN.md), not by Stage 1 code**
 - A `new` expense with a missing amount or other required field is not flagged by the

@@ -57,14 +57,17 @@ def _ids(refs: list[MemberRef], member_ids: list[int]) -> set[int]:
 def resolve_participants(participants: Participants, author_id: int, member_ids: list[int]) -> list[int]:
     """Final list of member IDs sharing the expense, in group order.
 
-    `only` present -> author + `only` (`exclude` is ignored: the explicit list wins).
-    Otherwise everyone minus `exclude`. Neither -> everyone.
+    `only` present -> (author + `only`) minus `exclude`; otherwise everyone minus `exclude`.
+    Neither -> everyone. Exclusions always apply, also to the author ("the pizza of Dani and
+    Michal": only Dani + Michal, exclude the author -> the author paid and owes 0).
+    The result can be EMPTY (everyone excluded): the caller must then ask, not split.
     """
     if participants.only is not None:
         chosen = _ids(participants.only, member_ids) | {author_id}
-        return [m for m in member_ids if m in chosen]
-    excluded = _ids(participants.exclude, member_ids)
-    return [m for m in member_ids if m not in excluded]
+    else:
+        chosen = set(member_ids)
+    chosen -= _ids(participants.exclude, member_ids)
+    return [m for m in member_ids if m in chosen]
 
 
 # --- grounding: is what the LLM says really in the message? -------------------
