@@ -18,9 +18,12 @@ Work on ONE step only. Keep every message short and plain.
    invalid input, illegal state transition, non-ILS currency...).
    Then STOP and wait for the user's approval or edits.
 
-3. **Write the tests** exactly as approved, in the correct folder
-   (`tests/unit/` = pure, no network, no LLM). Run them and show that they FAIL
-   (red) — this proves they test something real.
+3. **Write the tests with a separate subagent.** Spawn a fresh subagent (Agent tool)
+   that sees ONLY: CLAUDE.md, the approved test names, and the public function
+   signatures/docstrings (not the implementation). It writes the tests in the correct
+   folder (`tests/unit/` = pure, no network, no LLM). Then run them and show that they
+   FAIL (red), for the right reason (not just an import error on a missing field).
+   Why: code and tests written by the same agent share blind spots.
 
 4. **Implement** the smallest code that makes them pass. Follow every rule in
    CLAUDE.md (minor units, never float; LLM never does math; prompts only in

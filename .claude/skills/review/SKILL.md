@@ -34,12 +34,18 @@ The code author must not grade its own work. Do this:
      expected value that changed.
    - Test names read like rules.
 
+   **C. Try to break it** (adversarial)
+   - For each new validation/guardrail, try to construct 2–3 inputs that PASS the check
+     but are WRONG (e.g. evidence "40" quoted from "240"). Actually run them.
+   - Report every input that gets through as a [BLOCKER], with the exact input.
+
 4. Output format (from the subagent, relayed to the user as-is, short):
    ```
    VERDICT: clean | issues found
    [BLOCKER] file:line — problem — suggested fix
    [WARN]    file:line — problem — suggested fix
    Missing tests: <rule> — <suggested test name>
+   Break attempts: <input> → caught | GOT THROUGH
    ```
 
 5. Do not fix anything automatically. Ask the user which findings to fix.
