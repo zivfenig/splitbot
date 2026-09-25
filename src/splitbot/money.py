@@ -8,6 +8,8 @@ import re
 
 from splitbot.models import Share
 
+MAX_MINOR = 100_000 * 100  # 100,000 in any currency; above it the bot asks
+
 # "1,200" / "1,200.50": comma = thousands (exactly 3 digits after it)
 _THOUSANDS = re.compile(r"[0-9]{1,3}(,[0-9]{3})+(\.[0-9]{1,2})?")
 # "38.90" / "240"
@@ -29,6 +31,8 @@ def parse_amount(text: str) -> int:
     minor = int(whole) * 100 + int(frac.ljust(2, "0") or "0")
     if minor <= 0:
         raise ValueError("amount must be positive")
+    if minor > MAX_MINOR:
+        raise ValueError("amount is above the 100,000 limit")
     return minor
 
 

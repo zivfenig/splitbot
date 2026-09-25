@@ -110,8 +110,20 @@ def expense(total: int, shares: list[Share]) -> Expense:
         (0, [Share(user_id=1, paid=0, owed=0)]),
         (-1000, [Share(user_id=1, paid=-1000, owed=-1000)]),
         (1000, []),
+        (1000, [Share(user_id=1, paid=1000, owed=1500), Share(user_id=2, paid=0, owed=-500)]),
+        (1000, [Share(user_id=1, paid=1500, owed=500), Share(user_id=2, paid=-500, owed=500)]),
+        (1000, [Share(user_id=1, paid=1000, owed=500), Share(user_id=1, paid=0, owed=500)]),
     ],
-    ids=["paid_not_total", "owed_not_total", "zero_total", "negative_total", "no_shares"],
+    ids=[
+        "paid_not_total",
+        "owed_not_total",
+        "zero_total",
+        "negative_total",
+        "no_shares",
+        "negative_owed_share",
+        "negative_paid_share",
+        "same_member_twice",
+    ],
 )
 def test_expense_rejects_shares_that_do_not_sum_to_total(total, shares):
     good = [Share(user_id=1, paid=1000, owed=500), Share(user_id=2, paid=0, owed=500)]

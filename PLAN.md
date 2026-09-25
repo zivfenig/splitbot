@@ -83,6 +83,10 @@ Build:
   Default: the author confirms ("דיווחת על הוצאה של ₪240 על פיצה, מחולקת בין כולם. נכון?").
 - Commands: `/rules` (e.g. `/rules rent=all`, `/rules over_500=all`), `/pending`.
 - Corrections update the existing expense; duplicates are asked about, not added.
+- Workflow completeness check: a `new` expense without an amount (or other required field)
+  → ask, never guess. With a test.
+- Missing participants → treat as everyone, or ask. With a test.
+- The same member twice in exact amounts → ask. With a test.
 
 I verify: run the 10 scenarios in `tests/e2e/scenarios.md` in the real test group.
 Final balances must match the expected balances to the agora.

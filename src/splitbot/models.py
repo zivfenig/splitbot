@@ -197,6 +197,10 @@ class Expense(BaseModel):
     def shares_sum_exactly_to_total(self) -> "Expense":
         if self.total <= 0:
             raise ValueError("total must be positive")
+        if any(s.paid < 0 or s.owed < 0 for s in self.shares):
+            raise ValueError("shares cannot be negative")
+        if len({s.user_id for s in self.shares}) != len(self.shares):
+            raise ValueError("each member can appear only once in the shares")
         if sum(s.paid for s in self.shares) != self.total:
             raise ValueError("paid shares must sum to the total")
         if sum(s.owed for s in self.shares) != self.total:
@@ -215,7 +219,8 @@ class ApprovalMode(StrEnum):
 
 
 class ApprovalRule(BaseModel):
-    """e.g. rent=all -> category=rent, mode=all; over_500=all -> min_amount=50000, mode=all."""
+    """e.g. rent=all -> category=rent, mode=all; over_500=all -> min_amount=50000, mode=all.
+    The threshold is inclusive (>=). Both category and min_amount set = both must match (AND)."""
 
     mode: ApprovalMode
     category: Category | None = None

@@ -48,13 +48,16 @@ So process and documentation matter as much as the code.
   remainder is the author's share (shown in the author confirmation). Negative remainder,
   or author listed and sum ≠ total → the bot asks. No amounts → equal split (default).
 - **Approval details:** a non-ILS expense always needs `all` (amount thresholds are ILS
-  only). A rule with both a category and a min_amount means AND. Several matching rules
-  → the strictest wins (`all` > `author` > `auto`).
+  only). A rule with both a category and a min_amount means AND. The threshold is
+  inclusive (>=). Several matching rules → the strictest wins (`all` > `author` >
+  `auto`). A matching rule overrides the group default (it may loosen or tighten it), but
+  unknown category, low confidence or non-ILS always give `all`.
 - **Crash recovery:** an expense stuck in `submitting` is never blindly re-sent: first
   search Splitwise for our idempotency key; if found, mark it `submitted`.
 - **Amount text:** a comma followed by exactly 3 digits is a thousands separator
   ("1,200" = 1200). A comma followed by 1–2 digits is a decimal separator
-  ("38,90" = 38.90).
+  ("38,90" = 38.90). "1.200" (dot + 3 digits) and "1.200,50" are ambiguous → the bot asks.
+  Amounts above 100,000 (any currency) → the bot asks.
 - **Currencies:** closed list ILS, USD, EUR. ILS if none is mentioned. Recorded in the
   original currency in Splitwise, NO conversion.
 - **Categories:** closed subcategory list; the main category is derived from the
@@ -70,6 +73,9 @@ So process and documentation matter as much as the code.
   no evidence. A pure validator checks: evidence appears in
   the message (after light normalization); the number in the amount's evidence equals
   the amount; a non-ILS currency has evidence; defaults are marked `source: "default"`.
+  The quoted number must be a whole number in the message, never a slice of a longer
+  one ("40" inside "240"). A default payer must be the author. A default ILS is refused
+  when the message names a foreign currency (keyword heuristic: $ € £, USD, דולר, אירו…).
   Any failed check → needs clarification, never silently accepted.
   Limit (document it): evidence proves the text exists, not that the interpretation
   is right.

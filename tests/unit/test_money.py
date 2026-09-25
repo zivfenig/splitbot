@@ -14,6 +14,7 @@ from splitbot.money import format_amount, parse_amount, split_expense
         ("240", 24000),
         ("1,200", 120000),  # comma + exactly 3 digits = thousands
         ("1,200.50", 120050),
+        ("100000", 10000000),  # the cap itself is fine
         # rejected: never guess an amount, the bot asks instead
         ("", None),
         ("abc", None),
@@ -22,6 +23,8 @@ from splitbot.money import format_amount, parse_amount, split_expense
         ("1.200", None),  # dot + 3 digits is ambiguous
         ("1,2345", None),
         ("1.200,50", None),  # European style
+        ("100000.01", None),  # above the 100,000 cap
+        ("99999999999999999999", None),
     ],
 )
 def test_amount_text_becomes_minor_units_or_is_rejected(text, minor):
