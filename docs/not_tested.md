@@ -13,6 +13,9 @@ load testing over HTTP.
   to compare). A human always confirms the number (policy: at least author confirmation).
 - **The foreign-currency check is a keyword heuristic.** It catches `$ € £`, USD/EUR/GBP and
   the common Hebrew words; it can still miss unusual wording, and a default ILS can hide it.
+- **gpt-4o-mini does not always flag an ambiguous name** (dev case-37: "סופר 300 בלי דני" with two
+  Danis, 0/3 runs flagged). The author's confirmation shows the resolved name, so a human
+  catches it; the check is not automatic.
 - **Subcategory, description and message_type are inferred**, so they carry no evidence.
 - **Participants have ONE evidence string for the whole field, not one per member**, so a
   person wrongly added to `only` or `exclude` can still pass grounding (the evidence exists,

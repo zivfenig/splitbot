@@ -3,12 +3,13 @@
 import math
 import time
 from dataclasses import dataclass
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
+from pathlib import Path
 from typing import Protocol
 
 from openai import OpenAI, OpenAIError
 
-from splitbot.config import ConfigError, optional, require
+from splitbot.config import ConfigError, optional, price_for, require
 
 _MILLION = Decimal(1_000_000)
 
@@ -26,6 +27,7 @@ class LLMResult:
     output_tokens: int
     latency_s: float  # wall time of the call, >= 0
     cost_usd: Decimal | None  # None when the prices are not configured
+    cached_tokens: int | None = None  # input tokens served from the prompt cache; None when not reported
 
 
 class LLMClient(Protocol):
@@ -47,7 +49,10 @@ class OpenAIClient:
     The user text is ONLY ever sent in the "user" message, never in the system message.
     From the response it reads: `response.choices[0].message.content`,
     `response.choices[0].finish_reason`, `response.usage.prompt_tokens` and
-    `response.usage.completion_tokens`. `latency_s` is measured around that one call (a real
+    `response.usage.completion_tokens`, and (optional) `response.usage.prompt_tokens_details.
+    cached_tokens` -> `LLMResult.cached_tokens` (None when `prompt_tokens_details` is missing or
+    its `cached_tokens` is None: an API/SDK object without it must not break the call).
+    `latency_s` is measured around that one call (a real
     client is built with `max_retries=2`, so it can include SDK retries).
 
     Raises LLMError when: the SDK raises any `openai.OpenAIError` (API error, timeout,
@@ -81,18 +86,20 @@ class OpenAIClient:
         self._sdk = sdk if sdk is not None else OpenAI(api_key=api_key, timeout=timeout_s, max_retries=2)
 
     @classmethod
-    def from_env(cls) -> "OpenAIClient":
+    def from_env(cls, *, model: str | None = None, prices_path: Path | None = None) -> "OpenAIClient":
         """Read settings from environment variables (loaded from .env by splitbot.config):
-        OPENAI_API_KEY (required), OPENAI_MODEL (required), OPENAI_TEMPERATURE (optional,
-        default 0), OPENAI_PRICE_IN_PER_MTOK and OPENAI_PRICE_OUT_PER_MTOK (optional Decimals).
+        OPENAI_API_KEY (required), OPENAI_MODEL (required unless `model` is given; a given
+        `model` wins), OPENAI_TEMPERATURE (optional, default 0). Prices are NOT read from the
+        environment: they come from the versioned price list (`config.price_for(model,
+        prices_path)`); a model that is not listed gets no prices (cost unknown, None).
 
         Raises `splitbot.config.ConfigError` when the key or model is missing, when the model
         name contains whitespace (outer whitespace is stripped first), when the temperature
-        is not a number between 0 and 2 (inclusive), or a price is not a number. A temperature
-        of "-0" is read as 0.0 (positive zero).
+        is not a number between 0 and 2 (inclusive), or when the price file is unreadable
+        (`load_prices` errors). A temperature of "-0" is read as 0.0 (positive zero).
         """
         api_key = require("OPENAI_API_KEY")
-        model = require("OPENAI_MODEL")
+        model = (model or "").strip() or require("OPENAI_MODEL")
         if any(ch.isspace() for ch in model):
             raise ConfigError("OPENAI_MODEL must not contain whitespace")
         try:
@@ -101,12 +108,13 @@ class OpenAIClient:
             raise ConfigError("OPENAI_TEMPERATURE must be a number") from None
         if not math.isfinite(temperature) or not 0 <= temperature <= 2:
             raise ConfigError("OPENAI_TEMPERATURE must be between 0 and 2")
+        price = price_for(model, prices_path)  # None: the model is not listed, cost stays unknown
         return cls(
             api_key=api_key,
             model=model,
             temperature=temperature,
-            price_in_per_mtok=_price("OPENAI_PRICE_IN_PER_MTOK"),
-            price_out_per_mtok=_price("OPENAI_PRICE_OUT_PER_MTOK"),
+            price_in_per_mtok=price.in_per_mtok if price else None,
+            price_out_per_mtok=price.out_per_mtok if price else None,
         )
 
     def complete(self, system: str, user: str) -> LLMResult:
@@ -141,6 +149,8 @@ class OpenAIClient:
 
         input_tokens = response.usage.prompt_tokens
         output_tokens = response.usage.completion_tokens
+        details = getattr(response.usage, "prompt_tokens_details", None)
+        cached_tokens = getattr(details, "cached_tokens", None) if details is not None else None
         return LLMResult(
             text=text,
             model=self.model,
@@ -149,6 +159,7 @@ class OpenAIClient:
             output_tokens=output_tokens,
             latency_s=latency_s,
             cost_usd=self._cost(input_tokens, output_tokens),
+            cached_tokens=cached_tokens,
         )
 
     def _cost(self, input_tokens: int, output_tokens: int) -> Decimal | None:
@@ -158,16 +169,3 @@ class OpenAIClient:
             Decimal(input_tokens) * self.price_in_per_mtok / _MILLION
             + Decimal(output_tokens) * self.price_out_per_mtok / _MILLION
         )
-
-
-def _price(name: str) -> Decimal | None:
-    raw = optional(name)
-    if not raw:
-        return None
-    try:
-        value = Decimal(raw)
-    except InvalidOperation:
-        raise ConfigError(f"{name} must be a number") from None
-    if not value.is_finite() or value < 0:
-        raise ConfigError(f"{name} must be a non-negative number")
-    return value

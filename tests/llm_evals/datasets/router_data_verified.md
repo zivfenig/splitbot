@@ -3,7 +3,7 @@
 Labels: `expense` (new/correction/delete), `query` (question about the group's expenses), `ignore` (everything else).
 The reference set is used only by the embedding router (never evaluated). Dev: tune thresholds. Test: report.
 
-## dev (65)
+## dev (90)
 
 | id | message | label | difficulty |
 |---|---|---|---|
@@ -72,6 +72,31 @@ The reference set is used only by the embedding router (never evaluated). Dev: t
 | r-96 | מי השאיר כלים בכיור? | ignore | easy |
 | r-98 | מחר יום הולדת לדני! | ignore | easy |
 | r-99 | שכחתי את המפתחות, מישהו בבית? | ignore | easy |
+| r-100 | מישהו יכול להוריד את הזבל? | ignore | easy |
+| r-101 | יש מים חמים? | ignore | easy |
+| r-102 | מי מזמין את החבר'ה בשישי? | ignore | easy |
+| r-103 | הזמנתי תור לרופא ב-9:30 | ignore | hard |
+| r-104 | ביבי שוב בחדשות 🙄 | ignore | hard |
+| r-105 | המחיר של הקוטג' ברמי לוי השתגע | ignore | hard |
+| r-106 | מישהו יודע כמה עולה תיקון מקרר? | ignore | hard |
+| r-107 | צריך לשלם את החשמל עד סוף השבוע | ignore | hard |
+| r-108 | בוא נעשה על האש בשבת, כל אחד מביא משהו | ignore | hard |
+| r-109 | אני בסופר, צריכים משהו? | ignore | hard |
+| r-110 | המשכורת נכנסה סוף סוף 🎉 | ignore | hard |
+| r-111 | הזמנתי חבילה מעלי, תשימו לב לשליח | ignore | hard |
+| r-112 | אחלה ארוחה אתמול! | ignore | easy |
+| r-113 | לילה טוב לכולם | ignore | easy |
+| r-114 | אם מישהו הולך לסופר תקנו גם חלב | ignore | hard |
+| r-115 | העברתי לבעל הבית את השכירות, 6,200 | expense | hard |
+| r-116 | נו אז שמתי 70 על הקפה של כולם | expense | hard |
+| r-117 | סופר רמי לוי 356.40 | expense | easy |
+| r-118 | טעיתי, הסושי היה 180 ולא 160 | expense | hard |
+| r-119 | שילמתי את הגז, תרשמו אותו | expense | hard |
+| r-120 | bought toilet paper, 32 | expense | easy |
+| r-121 | כמה משה חייב לי? | query | easy |
+| r-122 | יצא לנו יקר החודש, כמה בדיוק? | query | hard |
+| r-123 | מה סך ההוצאות על סופר השבוע? | query | easy |
+| r-124 | מי עוד לא החזיר על הפיצה? | query | hard |
 
 ## test (34)
 

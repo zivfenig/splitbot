@@ -68,7 +68,8 @@ I verify: `pytest` green, test names read like rules, smoke outputs.
 - Routing: @ / reply → agent; otherwise router. Confirmation buttons (✓ / ✗),
   corrections/deletes with all-relevant approval, reply targeting, `/rules`, `/pending`.
 - Workflow checks, each with a test: new expense without amount → ask; missing participants →
-  everyone; same member twice in exact amounts → ask.
+  everyone; same member twice in exact amounts → ask; router said `expense` but the extractor
+  says `chat` → ask "רצית לרשום הוצאה?", never drop the message silently.
 - `tests/e2e/scenarios.md`: 10 scenarios in the real group; balances must match to the agora.
 
 ## Stage G (Sunday): results, demo, deck

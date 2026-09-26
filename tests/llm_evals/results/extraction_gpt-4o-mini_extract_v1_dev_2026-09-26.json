@@ -1,0 +1,5444 @@
+{
+  "prompt_version": "extract_v1",
+  "split": "dev",
+  "date": "2026-09-26",
+  "model": "gpt-4o-mini",
+  "temperature": 0.0,
+  "prices": {
+    "in": "0.15",
+    "out": "0.60"
+  },
+  "prices_sha": "f1023f9335ab",
+  "runs_per_case": 3,
+  "n_cases": 39,
+  "report": {
+    "overall": {
+      "n_cases": 39,
+      "n_runs": 117,
+      "type": {
+        "accuracy": 0.9487179487179487,
+        "false_expense_rate": 0.0,
+        "missed_expense_rate": 0.06666666666666667
+      },
+      "extraction": {
+        "full_case_accuracy": 0.8034188034188035,
+        "per_field_accuracy": {
+          "type": 0.9487179487179487,
+          "amount": 0.8928571428571429,
+          "amount_in_words": 1.0,
+          "currency": 0.9230769230769231,
+          "payer": 0.9259259259259259,
+          "participants": 0.8888888888888888,
+          "exact_amounts": 0.9876543209876543,
+          "subcategory": 0.8395061728395061,
+          "category": 0.8395061728395061,
+          "confidence": 0.9572649572649573,
+          "refers_to": 0.6666666666666666,
+          "asks": 0.0
+        }
+      },
+      "grounding_failure_rate": 0.043859649122807015,
+      "consistency": 0.8974358974358975,
+      "cost_usd": "0.05524065",
+      "n_calls": 117,
+      "cost_usd_per_call": "0.00047214",
+      "cost_usd_per_correct": "0.00058767",
+      "latency_s": {
+        "p50": 1.457751499954611,
+        "p95": 1.9227246248628944
+      }
+    },
+    "by_language": {
+      "en": {
+        "n_cases": 3,
+        "n_runs": 9,
+        "type": {
+          "accuracy": 1.0,
+          "false_expense_rate": 0.0,
+          "missed_expense_rate": 0.0
+        },
+        "extraction": {
+          "full_case_accuracy": 1.0,
+          "per_field_accuracy": {
+            "type": 1.0,
+            "amount": 1.0,
+            "amount_in_words": 1.0,
+            "currency": 1.0,
+            "payer": 1.0,
+            "participants": 1.0,
+            "exact_amounts": 1.0,
+            "subcategory": 1.0,
+            "category": 1.0,
+            "confidence": 1.0
+          }
+        },
+        "grounding_failure_rate": 0.0,
+        "consistency": 1.0,
+        "cost_usd": "0.00420255",
+        "n_calls": 9,
+        "cost_usd_per_call": "0.00046695",
+        "cost_usd_per_correct": "0.00046695",
+        "latency_s": {
+          "p50": 1.312334334012121,
+          "p95": 1.5383912089746445
+        }
+      },
+      "he": {
+        "n_cases": 35,
+        "n_runs": 105,
+        "type": {
+          "accuracy": 0.9428571428571428,
+          "false_expense_rate": 0.0,
+          "missed_expense_rate": 0.07407407407407407
+        },
+        "extraction": {
+          "full_case_accuracy": 0.780952380952381,
+          "per_field_accuracy": {
+            "type": 0.9428571428571428,
+            "amount": 0.88,
+            "amount_in_words": 1.0,
+            "currency": 0.9130434782608695,
+            "payer": 0.9166666666666666,
+            "participants": 0.875,
+            "exact_amounts": 0.9861111111111112,
+            "subcategory": 0.8194444444444444,
+            "category": 0.8194444444444444,
+            "confidence": 0.9523809523809523,
+            "refers_to": 0.6666666666666666,
+            "asks": 0.0
+          }
+        },
+        "grounding_failure_rate": 0.049019607843137254,
+        "consistency": 0.8857142857142857,
+        "cost_usd": "0.04959675",
+        "n_calls": 105,
+        "cost_usd_per_call": "0.00047235",
+        "cost_usd_per_correct": "0.00060484",
+        "latency_s": {
+          "p50": 1.4589849589392543,
+          "p95": 1.9227246248628944
+        }
+      },
+      "mixed": {
+        "n_cases": 1,
+        "n_runs": 3,
+        "type": {
+          "accuracy": 1.0,
+          "false_expense_rate": null,
+          "missed_expense_rate": 0.0
+        },
+        "extraction": {
+          "full_case_accuracy": 1.0,
+          "per_field_accuracy": {
+            "type": 1.0,
+            "amount": 1.0,
+            "amount_in_words": 1.0,
+            "currency": 1.0,
+            "payer": 1.0,
+            "participants": 1.0,
+            "exact_amounts": 1.0,
+            "subcategory": 1.0,
+            "category": 1.0,
+            "confidence": 1.0
+          }
+        },
+        "grounding_failure_rate": 0.0,
+        "consistency": 1.0,
+        "cost_usd": "0.00144135",
+        "n_calls": 3,
+        "cost_usd_per_call": "0.00048045",
+        "cost_usd_per_correct": "0.00048045",
+        "latency_s": {
+          "p50": 1.3819528750609607,
+          "p95": 1.7788042910397053
+        }
+      }
+    },
+    "per_case": {
+      "case-01": {
+        "language": "he",
+        "runs": 3,
+        "full_correct_runs": 3,
+        "consistent": true,
+        "cost_usd": "0.00145665",
+        "latency_s": 2.1339651385787874
+      },
+      "case-03": {
+        "language": "he",
+        "runs": 3,
+        "full_correct_runs": 3,
+        "consistent": true,
+        "cost_usd": "0.00145305",
+        "latency_s": 1.6125028746513028
+      },
+      "case-04": {
+        "language": "he",
+        "runs": 3,
+        "full_correct_runs": 0,
+        "consistent": true,
+        "cost_usd": "0.00132615",
+        "latency_s": 1.0539162083684157
+      },
+      "case-05": {
+        "language": "he",
+        "runs": 3,
+        "full_correct_runs": 3,
+        "consistent": true,
+        "cost_usd": "0.00145035",
+        "latency_s": 1.5332984586711973
+      },
+      "case-07": {
+        "language": "he",
+        "runs": 3,
+        "full_correct_runs": 3,
+        "consistent": true,
+        "cost_usd": "0.0014553",
+        "latency_s": 1.7582706249474238
+      },
+      "case-08": {
+        "language": "he",
+        "runs": 3,
+        "full_correct_runs": 3,
+        "consistent": true,
+        "cost_usd": "0.0014553",
+        "latency_s": 1.621107541024685
+      },
+      "case-10": {
+        "language": "he",
+        "runs": 3,
+        "full_correct_runs": 3,
+        "consistent": true,
+        "cost_usd": "0.0014592",
+        "latency_s": 1.7480411662254483
+      },
+      "case-11": {
+        "language": "he",
+        "runs": 3,
+        "full_correct_runs": 3,
+        "consistent": true,
+        "cost_usd": "0.00152325",
+        "latency_s": 1.873381930636242
+      },
+      "case-13": {
+        "language": "he",
+        "runs": 3,
+        "full_correct_runs": 3,
+        "consistent": true,
+        "cost_usd": "0.00144495",
+        "latency_s": 1.4785508336499333
+      },
+      "case-15": {
+        "language": "he",
+        "runs": 3,
+        "full_correct_runs": 3,
+        "consistent": true,
+        "cost_usd": "0.00139365",
+        "latency_s": 1.2551015279411029
+      },
+      "case-17": {
+        "language": "he",
+        "runs": 3,
+        "full_correct_runs": 3,
+        "consistent": true,
+        "cost_usd": "0.0013275",
+        "latency_s": 1.1518353053058188
+      },
+      "case-19": {
+        "language": "en",
+        "runs": 3,
+        "full_correct_runs": 3,
+        "consistent": true,
+        "cost_usd": "0.00143865",
+        "latency_s": 1.5141908893516909
+      },
+      "case-21": {
+        "language": "he",
+        "runs": 3,
+        "full_correct_runs": 3,
+        "consistent": true,
+        "cost_usd": "0.0013248",
+        "latency_s": 1.0184424716668825
+      },
+      "case-22": {
+        "language": "he",
+        "runs": 3,
+        "full_correct_runs": 3,
+        "consistent": true,
+        "cost_usd": "0.00132795",
+        "latency_s": 1.0789187083331246
+      },
+      "case-24": {
+        "language": "he",
+        "runs": 3,
+        "full_correct_runs": 3,
+        "consistent": true,
+        "cost_usd": "0.00132615",
+        "latency_s": 1.0399182219989598
+      },
+      "case-26": {
+        "language": "he",
+        "runs": 3,
+        "full_correct_runs": 3,
+        "consistent": true,
+        "cost_usd": "0.00132975",
+        "latency_s": 1.3107369164160143
+      },
+      "case-27": {
+        "language": "he",
+        "runs": 3,
+        "full_correct_runs": 3,
+        "consistent": true,
+        "cost_usd": "0.00132705",
+        "latency_s": 1.0408223336562514
+      },
+      "case-29": {
+        "language": "he",
+        "runs": 3,
+        "full_correct_runs": 3,
+        "consistent": true,
+        "cost_usd": "0.00132795",
+        "latency_s": 0.9973650139290839
+      },
+      "case-31": {
+        "language": "he",
+        "runs": 3,
+        "full_correct_runs": 3,
+        "consistent": true,
+        "cost_usd": "0.00132885",
+        "latency_s": 1.0970283747495462
+      },
+      "case-32": {
+        "language": "en",
+        "runs": 3,
+        "full_correct_runs": 3,
+        "consistent": true,
+        "cost_usd": "0.0013248",
+        "latency_s": 1.0308176110653828
+      },
+      "case-33": {
+        "language": "he",
+        "runs": 3,
+        "full_correct_runs": 0,
+        "consistent": true,
+        "cost_usd": "0.0014418",
+        "latency_s": 1.4462544303387403
+      },
+      "case-35": {
+        "language": "he",
+        "runs": 3,
+        "full_correct_runs": 3,
+        "consistent": true,
+        "cost_usd": "0.0014571",
+        "latency_s": 1.5219037220037233
+      },
+      "case-37": {
+        "language": "he",
+        "runs": 3,
+        "full_correct_runs": 0,
+        "consistent": true,
+        "cost_usd": "0.00146475",
+        "latency_s": 1.643250847235322
+      },
+      "case-39": {
+        "language": "en",
+        "runs": 3,
+        "full_correct_runs": 3,
+        "consistent": true,
+        "cost_usd": "0.0014391",
+        "latency_s": 1.3532461253150057
+      },
+      "case-41": {
+        "language": "he",
+        "runs": 3,
+        "full_correct_runs": 3,
+        "consistent": true,
+        "cost_usd": "0.00144315",
+        "latency_s": 1.4488044719522197
+      },
+      "case-42": {
+        "language": "he",
+        "runs": 3,
+        "full_correct_runs": 2,
+        "consistent": false,
+        "cost_usd": "0.00148095",
+        "latency_s": 1.724988360889256
+      },
+      "case-44": {
+        "language": "he",
+        "runs": 3,
+        "full_correct_runs": 0,
+        "consistent": true,
+        "cost_usd": "0.0013707",
+        "latency_s": 1.215192903066054
+      },
+      "case-46": {
+        "language": "he",
+        "runs": 3,
+        "full_correct_runs": 3,
+        "consistent": true,
+        "cost_usd": "0.00137205",
+        "latency_s": 1.1881365973968059
+      },
+      "case-47": {
+        "language": "he",
+        "runs": 3,
+        "full_correct_runs": 3,
+        "consistent": true,
+        "cost_usd": "0.00144315",
+        "latency_s": 1.4459497636028875
+      },
+      "case-48": {
+        "language": "he",
+        "runs": 3,
+        "full_correct_runs": 0,
+        "consistent": false,
+        "cost_usd": "0.00132705",
+        "latency_s": 1.016770361068969
+      },
+      "case-49": {
+        "language": "mixed",
+        "runs": 3,
+        "full_correct_runs": 3,
+        "consistent": true,
+        "cost_usd": "0.00144135",
+        "latency_s": 1.5107139443668227
+      },
+      "case-50": {
+        "language": "he",
+        "runs": 3,
+        "full_correct_runs": 3,
+        "consistent": true,
+        "cost_usd": "0.00145395",
+        "latency_s": 1.5947525557130575
+      },
+      "case-51": {
+        "language": "he",
+        "runs": 3,
+        "full_correct_runs": 0,
+        "consistent": true,
+        "cost_usd": "0.00147285",
+        "latency_s": 1.7295424026281883
+      },
+      "case-52": {
+        "language": "he",
+        "runs": 3,
+        "full_correct_runs": 3,
+        "consistent": false,
+        "cost_usd": "0.00147255",
+        "latency_s": 1.6646010275774945
+      },
+      "case-53": {
+        "language": "he",
+        "runs": 3,
+        "full_correct_runs": 3,
+        "consistent": true,
+        "cost_usd": "0.00145395",
+        "latency_s": 1.4409109722667683
+      },
+      "case-55": {
+        "language": "he",
+        "runs": 3,
+        "full_correct_runs": 0,
+        "consistent": true,
+        "cost_usd": "0.00145575",
+        "latency_s": 1.6636630276528497
+      },
+      "case-56": {
+        "language": "he",
+        "runs": 3,
+        "full_correct_runs": 3,
+        "consistent": true,
+        "cost_usd": "0.00145395",
+        "latency_s": 1.4778485137503594
+      },
+      "case-57": {
+        "language": "he",
+        "runs": 3,
+        "full_correct_runs": 3,
+        "consistent": true,
+        "cost_usd": "0.00148635",
+        "latency_s": 1.6831782499793917
+      },
+      "case-58": {
+        "language": "he",
+        "runs": 3,
+        "full_correct_runs": 2,
+        "consistent": false,
+        "cost_usd": "0.00150885",
+        "latency_s": 1.8128301666583866
+      }
+    },
+    "failures": [
+      {
+        "case_id": "case-04",
+        "run": 1,
+        "field": "type",
+        "expected": "new",
+        "actual": "chat"
+      },
+      {
+        "case_id": "case-04",
+        "run": 1,
+        "field": "amount",
+        "expected": "287",
+        "actual": "none"
+      },
+      {
+        "case_id": "case-04",
+        "run": 1,
+        "field": "currency",
+        "expected": "ILS",
+        "actual": "none"
+      },
+      {
+        "case_id": "case-04",
+        "run": 1,
+        "field": "payer",
+        "expected": "member 4",
+        "actual": "none"
+      },
+      {
+        "case_id": "case-04",
+        "run": 1,
+        "field": "participants",
+        "expected": "[1, 2, 3, 4]",
+        "actual": "none"
+      },
+      {
+        "case_id": "case-04",
+        "run": 1,
+        "field": "subcategory",
+        "expected": "groceries",
+        "actual": "none"
+      },
+      {
+        "case_id": "case-04",
+        "run": 1,
+        "field": "category",
+        "expected": "groceries",
+        "actual": "none"
+      },
+      {
+        "case_id": "case-04",
+        "run": 2,
+        "field": "type",
+        "expected": "new",
+        "actual": "chat"
+      },
+      {
+        "case_id": "case-04",
+        "run": 2,
+        "field": "amount",
+        "expected": "287",
+        "actual": "none"
+      },
+      {
+        "case_id": "case-04",
+        "run": 2,
+        "field": "currency",
+        "expected": "ILS",
+        "actual": "none"
+      },
+      {
+        "case_id": "case-04",
+        "run": 2,
+        "field": "payer",
+        "expected": "member 4",
+        "actual": "none"
+      },
+      {
+        "case_id": "case-04",
+        "run": 2,
+        "field": "participants",
+        "expected": "[1, 2, 3, 4]",
+        "actual": "none"
+      },
+      {
+        "case_id": "case-04",
+        "run": 2,
+        "field": "subcategory",
+        "expected": "groceries",
+        "actual": "none"
+      },
+      {
+        "case_id": "case-04",
+        "run": 2,
+        "field": "category",
+        "expected": "groceries",
+        "actual": "none"
+      },
+      {
+        "case_id": "case-04",
+        "run": 3,
+        "field": "type",
+        "expected": "new",
+        "actual": "chat"
+      },
+      {
+        "case_id": "case-04",
+        "run": 3,
+        "field": "amount",
+        "expected": "287",
+        "actual": "none"
+      },
+      {
+        "case_id": "case-04",
+        "run": 3,
+        "field": "currency",
+        "expected": "ILS",
+        "actual": "none"
+      },
+      {
+        "case_id": "case-04",
+        "run": 3,
+        "field": "payer",
+        "expected": "member 4",
+        "actual": "none"
+      },
+      {
+        "case_id": "case-04",
+        "run": 3,
+        "field": "participants",
+        "expected": "[1, 2, 3, 4]",
+        "actual": "none"
+      },
+      {
+        "case_id": "case-04",
+        "run": 3,
+        "field": "subcategory",
+        "expected": "groceries",
+        "actual": "none"
+      },
+      {
+        "case_id": "case-04",
+        "run": 3,
+        "field": "category",
+        "expected": "groceries",
+        "actual": "none"
+      },
+      {
+        "case_id": "case-33",
+        "run": 1,
+        "field": "subcategory",
+        "expected": "restaurant/delivery",
+        "actual": "other"
+      },
+      {
+        "case_id": "case-33",
+        "run": 1,
+        "field": "category",
+        "expected": "eating_out",
+        "actual": "other"
+      },
+      {
+        "case_id": "case-33",
+        "run": 2,
+        "field": "subcategory",
+        "expected": "restaurant/delivery",
+        "actual": "other"
+      },
+      {
+        "case_id": "case-33",
+        "run": 2,
+        "field": "category",
+        "expected": "eating_out",
+        "actual": "other"
+      },
+      {
+        "case_id": "case-33",
+        "run": 3,
+        "field": "subcategory",
+        "expected": "restaurant/delivery",
+        "actual": "other"
+      },
+      {
+        "case_id": "case-33",
+        "run": 3,
+        "field": "category",
+        "expected": "eating_out",
+        "actual": "other"
+      },
+      {
+        "case_id": "case-37",
+        "run": 1,
+        "field": "participants",
+        "expected": "only=none exclude=['ambiguous [2, 5]']",
+        "actual": "[1, 2, 3, 4]"
+      },
+      {
+        "case_id": "case-37",
+        "run": 1,
+        "field": "asks",
+        "expected": "needs_clarification",
+        "actual": "ok"
+      },
+      {
+        "case_id": "case-37",
+        "run": 2,
+        "field": "participants",
+        "expected": "only=none exclude=['ambiguous [2, 5]']",
+        "actual": "[1, 2, 3, 4]"
+      },
+      {
+        "case_id": "case-37",
+        "run": 2,
+        "field": "asks",
+        "expected": "needs_clarification",
+        "actual": "ok"
+      },
+      {
+        "case_id": "case-37",
+        "run": 3,
+        "field": "participants",
+        "expected": "only=none exclude=['ambiguous [2, 5]']",
+        "actual": "[1, 2, 3, 4]"
+      },
+      {
+        "case_id": "case-37",
+        "run": 3,
+        "field": "asks",
+        "expected": "needs_clarification",
+        "actual": "ok"
+      },
+      {
+        "case_id": "case-42",
+        "run": 1,
+        "field": "subcategory",
+        "expected": "restaurant/delivery",
+        "actual": "other"
+      },
+      {
+        "case_id": "case-42",
+        "run": 1,
+        "field": "category",
+        "expected": "eating_out",
+        "actual": "other"
+      },
+      {
+        "case_id": "case-44",
+        "run": 1,
+        "field": "amount",
+        "expected": "160",
+        "actual": "none"
+      },
+      {
+        "case_id": "case-44",
+        "run": 1,
+        "field": "refers_to",
+        "expected": "140",
+        "actual": "160"
+      },
+      {
+        "case_id": "case-44",
+        "run": 2,
+        "field": "amount",
+        "expected": "160",
+        "actual": "none"
+      },
+      {
+        "case_id": "case-44",
+        "run": 2,
+        "field": "refers_to",
+        "expected": "140",
+        "actual": "160"
+      },
+      {
+        "case_id": "case-44",
+        "run": 3,
+        "field": "amount",
+        "expected": "160",
+        "actual": "none"
+      },
+      {
+        "case_id": "case-44",
+        "run": 3,
+        "field": "refers_to",
+        "expected": "140",
+        "actual": "160"
+      },
+      {
+        "case_id": "case-48",
+        "run": 1,
+        "field": "type",
+        "expected": "new",
+        "actual": "chat"
+      },
+      {
+        "case_id": "case-48",
+        "run": 1,
+        "field": "currency",
+        "expected": "ILS",
+        "actual": "none"
+      },
+      {
+        "case_id": "case-48",
+        "run": 1,
+        "field": "payer",
+        "expected": "member 1",
+        "actual": "none"
+      },
+      {
+        "case_id": "case-48",
+        "run": 1,
+        "field": "participants",
+        "expected": "[1, 2, 3, 4]",
+        "actual": "none"
+      },
+      {
+        "case_id": "case-48",
+        "run": 1,
+        "field": "subcategory",
+        "expected": "restaurant/delivery",
+        "actual": "none"
+      },
+      {
+        "case_id": "case-48",
+        "run": 1,
+        "field": "category",
+        "expected": "eating_out",
+        "actual": "none"
+      },
+      {
+        "case_id": "case-48",
+        "run": 2,
+        "field": "type",
+        "expected": "new",
+        "actual": "chat"
+      },
+      {
+        "case_id": "case-48",
+        "run": 2,
+        "field": "currency",
+        "expected": "ILS",
+        "actual": "none"
+      },
+      {
+        "case_id": "case-48",
+        "run": 2,
+        "field": "payer",
+        "expected": "member 1",
+        "actual": "none"
+      },
+      {
+        "case_id": "case-48",
+        "run": 2,
+        "field": "participants",
+        "expected": "[1, 2, 3, 4]",
+        "actual": "none"
+      },
+      {
+        "case_id": "case-48",
+        "run": 2,
+        "field": "subcategory",
+        "expected": "restaurant/delivery",
+        "actual": "none"
+      },
+      {
+        "case_id": "case-48",
+        "run": 2,
+        "field": "category",
+        "expected": "eating_out",
+        "actual": "none"
+      },
+      {
+        "case_id": "case-48",
+        "run": 2,
+        "field": "confidence",
+        "expected": "low",
+        "actual": "high"
+      },
+      {
+        "case_id": "case-48",
+        "run": 3,
+        "field": "type",
+        "expected": "new",
+        "actual": "chat"
+      },
+      {
+        "case_id": "case-48",
+        "run": 3,
+        "field": "currency",
+        "expected": "ILS",
+        "actual": "none"
+      },
+      {
+        "case_id": "case-48",
+        "run": 3,
+        "field": "payer",
+        "expected": "member 1",
+        "actual": "none"
+      },
+      {
+        "case_id": "case-48",
+        "run": 3,
+        "field": "participants",
+        "expected": "[1, 2, 3, 4]",
+        "actual": "none"
+      },
+      {
+        "case_id": "case-48",
+        "run": 3,
+        "field": "subcategory",
+        "expected": "restaurant/delivery",
+        "actual": "none"
+      },
+      {
+        "case_id": "case-48",
+        "run": 3,
+        "field": "category",
+        "expected": "eating_out",
+        "actual": "none"
+      },
+      {
+        "case_id": "case-48",
+        "run": 3,
+        "field": "confidence",
+        "expected": "low",
+        "actual": "high"
+      },
+      {
+        "case_id": "case-51",
+        "run": 1,
+        "field": "amount",
+        "expected": "312",
+        "actual": "none"
+      },
+      {
+        "case_id": "case-51",
+        "run": 1,
+        "field": "confidence",
+        "expected": "not low",
+        "actual": "low"
+      },
+      {
+        "case_id": "case-51",
+        "run": 2,
+        "field": "amount",
+        "expected": "312",
+        "actual": "none"
+      },
+      {
+        "case_id": "case-51",
+        "run": 2,
+        "field": "confidence",
+        "expected": "not low",
+        "actual": "low"
+      },
+      {
+        "case_id": "case-51",
+        "run": 3,
+        "field": "amount",
+        "expected": "312",
+        "actual": "none"
+      },
+      {
+        "case_id": "case-51",
+        "run": 3,
+        "field": "confidence",
+        "expected": "not low",
+        "actual": "low"
+      },
+      {
+        "case_id": "case-55",
+        "run": 1,
+        "field": "subcategory",
+        "expected": "supplies",
+        "actual": "other"
+      },
+      {
+        "case_id": "case-55",
+        "run": 1,
+        "field": "category",
+        "expected": "household",
+        "actual": "other"
+      },
+      {
+        "case_id": "case-55",
+        "run": 2,
+        "field": "subcategory",
+        "expected": "supplies",
+        "actual": "other"
+      },
+      {
+        "case_id": "case-55",
+        "run": 2,
+        "field": "category",
+        "expected": "household",
+        "actual": "other"
+      },
+      {
+        "case_id": "case-55",
+        "run": 3,
+        "field": "subcategory",
+        "expected": "supplies",
+        "actual": "other"
+      },
+      {
+        "case_id": "case-55",
+        "run": 3,
+        "field": "category",
+        "expected": "household",
+        "actual": "other"
+      },
+      {
+        "case_id": "case-58",
+        "run": 1,
+        "field": "exact_amounts",
+        "expected": "member 2=80, member 4=120",
+        "actual": "member 4=120"
+      }
+    ]
+  },
+  "runs": {
+    "case-01": [
+      {
+        "status": "ok",
+        "issues": [],
+        "cost_usd": "0.00048555",
+        "latency_s": 2.9575025408994406,
+        "input_tokens": 2793,
+        "output_tokens": 111,
+        "extracted": {
+          "message_type": "new",
+          "confidence": "high",
+          "amount": {
+            "value": "38.90",
+            "evidence": "38.90",
+            "source": "message"
+          },
+          "amount_in_words": false,
+          "currency": {
+            "value": "ILS",
+            "evidence": null,
+            "source": "default"
+          },
+          "payer": {
+            "value": {
+              "kind": "known",
+              "id": 1
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "participants": {
+            "value": {
+              "only": null,
+              "exclude": []
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "exact_amounts": null,
+          "refers_to": null,
+          "subcategory": "groceries",
+          "description": "חלב לחם וביצים"
+        }
+      },
+      {
+        "status": "ok",
+        "issues": [],
+        "cost_usd": "0.00048555",
+        "latency_s": 1.9683334999717772,
+        "input_tokens": 2793,
+        "output_tokens": 111,
+        "extracted": {
+          "message_type": "new",
+          "confidence": "high",
+          "amount": {
+            "value": "38.90",
+            "evidence": "38.90",
+            "source": "message"
+          },
+          "amount_in_words": false,
+          "currency": {
+            "value": "ILS",
+            "evidence": null,
+            "source": "default"
+          },
+          "payer": {
+            "value": {
+              "kind": "known",
+              "id": 1
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "participants": {
+            "value": {
+              "only": null,
+              "exclude": []
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "exact_amounts": null,
+          "refers_to": null,
+          "subcategory": "groceries",
+          "description": "חלב לחם וביצים"
+        }
+      },
+      {
+        "status": "ok",
+        "issues": [],
+        "cost_usd": "0.00048555",
+        "latency_s": 1.4760593748651445,
+        "input_tokens": 2793,
+        "output_tokens": 111,
+        "extracted": {
+          "message_type": "new",
+          "confidence": "high",
+          "amount": {
+            "value": "38.90",
+            "evidence": "38.90",
+            "source": "message"
+          },
+          "amount_in_words": false,
+          "currency": {
+            "value": "ILS",
+            "evidence": null,
+            "source": "default"
+          },
+          "payer": {
+            "value": {
+              "kind": "known",
+              "id": 1
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "participants": {
+            "value": {
+              "only": null,
+              "exclude": []
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "exact_amounts": null,
+          "refers_to": null,
+          "subcategory": "groceries",
+          "description": "חלב לחם וביצים"
+        }
+      }
+    ],
+    "case-03": [
+      {
+        "status": "ok",
+        "issues": [],
+        "cost_usd": "0.00048435",
+        "latency_s": 1.861193290911615,
+        "input_tokens": 2793,
+        "output_tokens": 109,
+        "extracted": {
+          "message_type": "new",
+          "confidence": "high",
+          "amount": {
+            "value": "23",
+            "evidence": "23",
+            "source": "message"
+          },
+          "amount_in_words": false,
+          "currency": {
+            "value": "ILS",
+            "evidence": null,
+            "source": "default"
+          },
+          "payer": {
+            "value": {
+              "kind": "known",
+              "id": 1
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "participants": {
+            "value": {
+              "only": null,
+              "exclude": []
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "exact_amounts": null,
+          "refers_to": null,
+          "subcategory": "supplies",
+          "description": "נייר טואלט וסבון כלים"
+        }
+      },
+      {
+        "status": "ok",
+        "issues": [],
+        "cost_usd": "0.00048435",
+        "latency_s": 1.4296511670108885,
+        "input_tokens": 2793,
+        "output_tokens": 109,
+        "extracted": {
+          "message_type": "new",
+          "confidence": "high",
+          "amount": {
+            "value": "23",
+            "evidence": "23",
+            "source": "message"
+          },
+          "amount_in_words": false,
+          "currency": {
+            "value": "ILS",
+            "evidence": null,
+            "source": "default"
+          },
+          "payer": {
+            "value": {
+              "kind": "known",
+              "id": 1
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "participants": {
+            "value": {
+              "only": null,
+              "exclude": []
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "exact_amounts": null,
+          "refers_to": null,
+          "subcategory": "supplies",
+          "description": "נייר טואלט וסבון כלים"
+        }
+      },
+      {
+        "status": "ok",
+        "issues": [],
+        "cost_usd": "0.00048435",
+        "latency_s": 1.5466641660314053,
+        "input_tokens": 2793,
+        "output_tokens": 109,
+        "extracted": {
+          "message_type": "new",
+          "confidence": "high",
+          "amount": {
+            "value": "23",
+            "evidence": "23",
+            "source": "message"
+          },
+          "amount_in_words": false,
+          "currency": {
+            "value": "ILS",
+            "evidence": null,
+            "source": "default"
+          },
+          "payer": {
+            "value": {
+              "kind": "known",
+              "id": 1
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "participants": {
+            "value": {
+              "only": null,
+              "exclude": []
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "exact_amounts": null,
+          "refers_to": null,
+          "subcategory": "supplies",
+          "description": "נייר טואלט וסבון כלים"
+        }
+      }
+    ],
+    "case-04": [
+      {
+        "status": "ok",
+        "issues": [],
+        "cost_usd": "0.00044205",
+        "latency_s": 1.0736591250170022,
+        "input_tokens": 2787,
+        "output_tokens": 40,
+        "extracted": {
+          "message_type": "chat",
+          "confidence": "high",
+          "amount": null,
+          "amount_in_words": false,
+          "currency": null,
+          "payer": null,
+          "participants": null,
+          "exact_amounts": null,
+          "refers_to": null,
+          "subcategory": null,
+          "description": null
+        }
+      },
+      {
+        "status": "ok",
+        "issues": [],
+        "cost_usd": "0.00044205",
+        "latency_s": 0.9978153340052813,
+        "input_tokens": 2787,
+        "output_tokens": 40,
+        "extracted": {
+          "message_type": "chat",
+          "confidence": "high",
+          "amount": null,
+          "amount_in_words": false,
+          "currency": null,
+          "payer": null,
+          "participants": null,
+          "exact_amounts": null,
+          "refers_to": null,
+          "subcategory": null,
+          "description": null
+        }
+      },
+      {
+        "status": "ok",
+        "issues": [],
+        "cost_usd": "0.00044205",
+        "latency_s": 1.0902741660829633,
+        "input_tokens": 2787,
+        "output_tokens": 40,
+        "extracted": {
+          "message_type": "chat",
+          "confidence": "high",
+          "amount": null,
+          "amount_in_words": false,
+          "currency": null,
+          "payer": null,
+          "participants": null,
+          "exact_amounts": null,
+          "refers_to": null,
+          "subcategory": null,
+          "description": null
+        }
+      }
+    ],
+    "case-05": [
+      {
+        "status": "ok",
+        "issues": [],
+        "cost_usd": "0.00048345",
+        "latency_s": 1.577478124992922,
+        "input_tokens": 2787,
+        "output_tokens": 109,
+        "extracted": {
+          "message_type": "new",
+          "confidence": "high",
+          "amount": {
+            "value": "640",
+            "evidence": "640",
+            "source": "message"
+          },
+          "amount_in_words": false,
+          "currency": {
+            "value": "ILS",
+            "evidence": null,
+            "source": "default"
+          },
+          "payer": {
+            "value": {
+              "kind": "known",
+              "id": 1
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "participants": {
+            "value": {
+              "only": null,
+              "exclude": []
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "exact_amounts": null,
+          "refers_to": null,
+          "subcategory": "electricity",
+          "description": "חשמל הגיע"
+        }
+      },
+      {
+        "status": "ok",
+        "issues": [],
+        "cost_usd": "0.00048345",
+        "latency_s": 1.4589849589392543,
+        "input_tokens": 2787,
+        "output_tokens": 109,
+        "extracted": {
+          "message_type": "new",
+          "confidence": "high",
+          "amount": {
+            "value": "640",
+            "evidence": "640",
+            "source": "message"
+          },
+          "amount_in_words": false,
+          "currency": {
+            "value": "ILS",
+            "evidence": null,
+            "source": "default"
+          },
+          "payer": {
+            "value": {
+              "kind": "known",
+              "id": 1
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "participants": {
+            "value": {
+              "only": null,
+              "exclude": []
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "exact_amounts": null,
+          "refers_to": null,
+          "subcategory": "electricity",
+          "description": "חשמל הגיע"
+        }
+      },
+      {
+        "status": "ok",
+        "issues": [],
+        "cost_usd": "0.00048345",
+        "latency_s": 1.5634322920814157,
+        "input_tokens": 2787,
+        "output_tokens": 109,
+        "extracted": {
+          "message_type": "new",
+          "confidence": "high",
+          "amount": {
+            "value": "640",
+            "evidence": "640",
+            "source": "message"
+          },
+          "amount_in_words": false,
+          "currency": {
+            "value": "ILS",
+            "evidence": null,
+            "source": "default"
+          },
+          "payer": {
+            "value": {
+              "kind": "known",
+              "id": 1
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "participants": {
+            "value": {
+              "only": null,
+              "exclude": []
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "exact_amounts": null,
+          "refers_to": null,
+          "subcategory": "electricity",
+          "description": "חשמל הגיע"
+        }
+      }
+    ],
+    "case-07": [
+      {
+        "status": "ok",
+        "issues": [],
+        "cost_usd": "0.0004851",
+        "latency_s": 1.7205804998520762,
+        "input_tokens": 2790,
+        "output_tokens": 111,
+        "extracted": {
+          "message_type": "new",
+          "confidence": "high",
+          "amount": {
+            "value": "99",
+            "evidence": "99",
+            "source": "message"
+          },
+          "amount_in_words": false,
+          "currency": {
+            "value": "ILS",
+            "evidence": "ש״ח",
+            "source": "message"
+          },
+          "payer": {
+            "value": {
+              "kind": "known",
+              "id": 1
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "participants": {
+            "value": {
+              "only": null,
+              "exclude": []
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "exact_amounts": null,
+          "refers_to": null,
+          "subcategory": "internet",
+          "description": "אינטרנט בזק"
+        }
+      },
+      {
+        "status": "ok",
+        "issues": [],
+        "cost_usd": "0.0004851",
+        "latency_s": 1.6315067501273006,
+        "input_tokens": 2790,
+        "output_tokens": 111,
+        "extracted": {
+          "message_type": "new",
+          "confidence": "high",
+          "amount": {
+            "value": "99",
+            "evidence": "99",
+            "source": "message"
+          },
+          "amount_in_words": false,
+          "currency": {
+            "value": "ILS",
+            "evidence": "ש״ח",
+            "source": "message"
+          },
+          "payer": {
+            "value": {
+              "kind": "known",
+              "id": 1
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "participants": {
+            "value": {
+              "only": null,
+              "exclude": []
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "exact_amounts": null,
+          "refers_to": null,
+          "subcategory": "internet",
+          "description": "אינטרנט בזק"
+        }
+      },
+      {
+        "status": "ok",
+        "issues": [],
+        "cost_usd": "0.0004851",
+        "latency_s": 1.9227246248628944,
+        "input_tokens": 2790,
+        "output_tokens": 111,
+        "extracted": {
+          "message_type": "new",
+          "confidence": "high",
+          "amount": {
+            "value": "99",
+            "evidence": "99",
+            "source": "message"
+          },
+          "amount_in_words": false,
+          "currency": {
+            "value": "ILS",
+            "evidence": "ש״ח",
+            "source": "message"
+          },
+          "payer": {
+            "value": {
+              "kind": "known",
+              "id": 1
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "participants": {
+            "value": {
+              "only": null,
+              "exclude": []
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "exact_amounts": null,
+          "refers_to": null,
+          "subcategory": "internet",
+          "description": "אינטרנט בזק"
+        }
+      }
+    ],
+    "case-08": [
+      {
+        "status": "ok",
+        "issues": [],
+        "cost_usd": "0.0004851",
+        "latency_s": 1.7284661659505218,
+        "input_tokens": 2786,
+        "output_tokens": 112,
+        "extracted": {
+          "message_type": "new",
+          "confidence": "high",
+          "amount": {
+            "value": "140",
+            "evidence": "140",
+            "source": "message"
+          },
+          "amount_in_words": false,
+          "currency": {
+            "value": "ILS",
+            "evidence": null,
+            "source": "default"
+          },
+          "payer": {
+            "value": {
+              "kind": "known",
+              "id": 3
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "participants": {
+            "value": {
+              "only": null,
+              "exclude": [
+                {
+                  "kind": "known",
+                  "id": 2
+                }
+              ]
+            },
+            "evidence": "בלי דני",
+            "source": "message"
+          },
+          "exact_amounts": null,
+          "refers_to": null,
+          "subcategory": "restaurant",
+          "description": "פיצה"
+        }
+      },
+      {
+        "status": "ok",
+        "issues": [],
+        "cost_usd": "0.0004851",
+        "latency_s": 1.4796730410307646,
+        "input_tokens": 2786,
+        "output_tokens": 112,
+        "extracted": {
+          "message_type": "new",
+          "confidence": "high",
+          "amount": {
+            "value": "140",
+            "evidence": "140",
+            "source": "message"
+          },
+          "amount_in_words": false,
+          "currency": {
+            "value": "ILS",
+            "evidence": null,
+            "source": "default"
+          },
+          "payer": {
+            "value": {
+              "kind": "known",
+              "id": 3
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "participants": {
+            "value": {
+              "only": null,
+              "exclude": [
+                {
+                  "kind": "known",
+                  "id": 2
+                }
+              ]
+            },
+            "evidence": "בלי דני",
+            "source": "message"
+          },
+          "exact_amounts": null,
+          "refers_to": null,
+          "subcategory": "restaurant",
+          "description": "פיצה"
+        }
+      },
+      {
+        "status": "ok",
+        "issues": [],
+        "cost_usd": "0.0004851",
+        "latency_s": 1.6551834160927683,
+        "input_tokens": 2786,
+        "output_tokens": 112,
+        "extracted": {
+          "message_type": "new",
+          "confidence": "high",
+          "amount": {
+            "value": "140",
+            "evidence": "140",
+            "source": "message"
+          },
+          "amount_in_words": false,
+          "currency": {
+            "value": "ILS",
+            "evidence": null,
+            "source": "default"
+          },
+          "payer": {
+            "value": {
+              "kind": "known",
+              "id": 3
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "participants": {
+            "value": {
+              "only": null,
+              "exclude": [
+                {
+                  "kind": "known",
+                  "id": 2
+                }
+              ]
+            },
+            "evidence": "בלי דני",
+            "source": "message"
+          },
+          "exact_amounts": null,
+          "refers_to": null,
+          "subcategory": "restaurant",
+          "description": "פיצה"
+        }
+      }
+    ],
+    "case-10": [
+      {
+        "status": "ok",
+        "issues": [],
+        "cost_usd": "0.0004866",
+        "latency_s": 1.7266891659237444,
+        "input_tokens": 2788,
+        "output_tokens": 114,
+        "extracted": {
+          "message_type": "new",
+          "confidence": "medium",
+          "amount": {
+            "value": "96",
+            "evidence": "96",
+            "source": "message"
+          },
+          "amount_in_words": false,
+          "currency": {
+            "value": "ILS",
+            "evidence": null,
+            "source": "default"
+          },
+          "payer": {
+            "value": {
+              "kind": "known",
+              "id": 1
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "participants": {
+            "value": {
+              "only": [
+                {
+                  "kind": "known",
+                  "id": 4
+                }
+              ],
+              "exclude": []
+            },
+            "evidence": "רק אני ומיכל",
+            "source": "message"
+          },
+          "exact_amounts": null,
+          "refers_to": null,
+          "subcategory": "delivery",
+          "description": "סושי"
+        }
+      },
+      {
+        "status": "ok",
+        "issues": [],
+        "cost_usd": "0.0004866",
+        "latency_s": 1.6054812078364193,
+        "input_tokens": 2788,
+        "output_tokens": 114,
+        "extracted": {
+          "message_type": "new",
+          "confidence": "medium",
+          "amount": {
+            "value": "96",
+            "evidence": "96",
+            "source": "message"
+          },
+          "amount_in_words": false,
+          "currency": {
+            "value": "ILS",
+            "evidence": null,
+            "source": "default"
+          },
+          "payer": {
+            "value": {
+              "kind": "known",
+              "id": 1
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "participants": {
+            "value": {
+              "only": [
+                {
+                  "kind": "known",
+                  "id": 4
+                }
+              ],
+              "exclude": []
+            },
+            "evidence": "רק אני ומיכל",
+            "source": "message"
+          },
+          "exact_amounts": null,
+          "refers_to": null,
+          "subcategory": "delivery",
+          "description": "סושי"
+        }
+      },
+      {
+        "status": "ok",
+        "issues": [],
+        "cost_usd": "0.0004860",
+        "latency_s": 1.911953124916181,
+        "input_tokens": 2788,
+        "output_tokens": 113,
+        "extracted": {
+          "message_type": "new",
+          "confidence": "medium",
+          "amount": {
+            "value": "96",
+            "evidence": "96",
+            "source": "message"
+          },
+          "amount_in_words": false,
+          "currency": {
+            "value": "ILS",
+            "evidence": null,
+            "source": "default"
+          },
+          "payer": {
+            "value": {
+              "kind": "known",
+              "id": 1
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "participants": {
+            "value": {
+              "only": [
+                {
+                  "kind": "known",
+                  "id": 4
+                }
+              ],
+              "exclude": []
+            },
+            "evidence": "רק אני ומיכל",
+            "source": "message"
+          },
+          "exact_amounts": null,
+          "refers_to": null,
+          "subcategory": "delivery",
+          "description": "סושי"
+        }
+      }
+    ],
+    "case-11": [
+      {
+        "status": "ok",
+        "issues": [],
+        "cost_usd": "0.00050775",
+        "latency_s": 2.0885735829360783,
+        "input_tokens": 2797,
+        "output_tokens": 147,
+        "extracted": {
+          "message_type": "new",
+          "confidence": "high",
+          "amount": {
+            "value": "150",
+            "evidence": "150",
+            "source": "message"
+          },
+          "amount_in_words": false,
+          "currency": {
+            "value": "ILS",
+            "evidence": null,
+            "source": "default"
+          },
+          "payer": {
+            "value": {
+              "kind": "known",
+              "id": 1
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "participants": {
+            "value": {
+              "only": null,
+              "exclude": []
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "exact_amounts": [
+            {
+              "member": {
+                "kind": "known",
+                "id": 2
+              },
+              "amount": "50",
+              "evidence": "דני 50"
+            },
+            {
+              "member": {
+                "kind": "known",
+                "id": 3
+              },
+              "amount": "60",
+              "evidence": "משה 60"
+            }
+          ],
+          "refers_to": null,
+          "subcategory": "restaurant",
+          "description": "המסעדה"
+        }
+      },
+      {
+        "status": "ok",
+        "issues": [],
+        "cost_usd": "0.00050775",
+        "latency_s": 1.7422710419632494,
+        "input_tokens": 2797,
+        "output_tokens": 147,
+        "extracted": {
+          "message_type": "new",
+          "confidence": "high",
+          "amount": {
+            "value": "150",
+            "evidence": "150",
+            "source": "message"
+          },
+          "amount_in_words": false,
+          "currency": {
+            "value": "ILS",
+            "evidence": null,
+            "source": "default"
+          },
+          "payer": {
+            "value": {
+              "kind": "known",
+              "id": 1
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "participants": {
+            "value": {
+              "only": null,
+              "exclude": []
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "exact_amounts": [
+            {
+              "member": {
+                "kind": "known",
+                "id": 2
+              },
+              "amount": "50",
+              "evidence": "דני 50"
+            },
+            {
+              "member": {
+                "kind": "known",
+                "id": 3
+              },
+              "amount": "60",
+              "evidence": "משה 60"
+            }
+          ],
+          "refers_to": null,
+          "subcategory": "restaurant",
+          "description": "המסעדה"
+        }
+      },
+      {
+        "status": "ok",
+        "issues": [],
+        "cost_usd": "0.00050775",
+        "latency_s": 1.7893011670093983,
+        "input_tokens": 2797,
+        "output_tokens": 147,
+        "extracted": {
+          "message_type": "new",
+          "confidence": "high",
+          "amount": {
+            "value": "150",
+            "evidence": "150",
+            "source": "message"
+          },
+          "amount_in_words": false,
+          "currency": {
+            "value": "ILS",
+            "evidence": null,
+            "source": "default"
+          },
+          "payer": {
+            "value": {
+              "kind": "known",
+              "id": 1
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "participants": {
+            "value": {
+              "only": null,
+              "exclude": []
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "exact_amounts": [
+            {
+              "member": {
+                "kind": "known",
+                "id": 2
+              },
+              "amount": "50",
+              "evidence": "דני 50"
+            },
+            {
+              "member": {
+                "kind": "known",
+                "id": 3
+              },
+              "amount": "60",
+              "evidence": "משה 60"
+            }
+          ],
+          "refers_to": null,
+          "subcategory": "restaurant",
+          "description": "המסעדה"
+        }
+      }
+    ],
+    "case-13": [
+      {
+        "status": "ok",
+        "issues": [],
+        "cost_usd": "0.00048165",
+        "latency_s": 1.5635964169632643,
+        "input_tokens": 2787,
+        "output_tokens": 106,
+        "extracted": {
+          "message_type": "new",
+          "confidence": "high",
+          "amount": {
+            "value": "15.99",
+            "evidence": "15.99",
+            "source": "message"
+          },
+          "amount_in_words": false,
+          "currency": {
+            "value": "USD",
+            "evidence": "$",
+            "source": "message"
+          },
+          "payer": {
+            "value": {
+              "kind": "known",
+              "id": 4
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "participants": {
+            "value": {
+              "only": null,
+              "exclude": []
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "exact_amounts": null,
+          "refers_to": null,
+          "subcategory": "other",
+          "description": "נטפליקס"
+        }
+      },
+      {
+        "status": "ok",
+        "issues": [],
+        "cost_usd": "0.00048165",
+        "latency_s": 1.4283777088858187,
+        "input_tokens": 2787,
+        "output_tokens": 106,
+        "extracted": {
+          "message_type": "new",
+          "confidence": "high",
+          "amount": {
+            "value": "15.99",
+            "evidence": "15.99",
+            "source": "message"
+          },
+          "amount_in_words": false,
+          "currency": {
+            "value": "USD",
+            "evidence": "$",
+            "source": "message"
+          },
+          "payer": {
+            "value": {
+              "kind": "known",
+              "id": 4
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "participants": {
+            "value": {
+              "only": null,
+              "exclude": []
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "exact_amounts": null,
+          "refers_to": null,
+          "subcategory": "other",
+          "description": "נטפליקס"
+        }
+      },
+      {
+        "status": "ok",
+        "issues": [],
+        "cost_usd": "0.00048165",
+        "latency_s": 1.443678375100717,
+        "input_tokens": 2787,
+        "output_tokens": 106,
+        "extracted": {
+          "message_type": "new",
+          "confidence": "high",
+          "amount": {
+            "value": "15.99",
+            "evidence": "15.99",
+            "source": "message"
+          },
+          "amount_in_words": false,
+          "currency": {
+            "value": "USD",
+            "evidence": "$",
+            "source": "message"
+          },
+          "payer": {
+            "value": {
+              "kind": "known",
+              "id": 4
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "participants": {
+            "value": {
+              "only": null,
+              "exclude": []
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "exact_amounts": null,
+          "refers_to": null,
+          "subcategory": "other",
+          "description": "נטפליקס"
+        }
+      }
+    ],
+    "case-15": [
+      {
+        "status": "ok",
+        "issues": [],
+        "cost_usd": "0.00046455",
+        "latency_s": 1.2142795838881284,
+        "input_tokens": 2789,
+        "output_tokens": 77,
+        "extracted": {
+          "message_type": "correction",
+          "confidence": "high",
+          "amount": {
+            "value": "260",
+            "evidence": "260",
+            "source": "message"
+          },
+          "amount_in_words": false,
+          "currency": null,
+          "payer": null,
+          "participants": null,
+          "exact_amounts": null,
+          "refers_to": {
+            "value": "240",
+            "evidence": "240",
+            "source": "message"
+          },
+          "subcategory": null,
+          "description": null
+        }
+      },
+      {
+        "status": "ok",
+        "issues": [],
+        "cost_usd": "0.00046455",
+        "latency_s": 1.2452875419985503,
+        "input_tokens": 2789,
+        "output_tokens": 77,
+        "extracted": {
+          "message_type": "correction",
+          "confidence": "high",
+          "amount": {
+            "value": "260",
+            "evidence": "260",
+            "source": "message"
+          },
+          "amount_in_words": false,
+          "currency": null,
+          "payer": null,
+          "participants": null,
+          "exact_amounts": null,
+          "refers_to": {
+            "value": "240",
+            "evidence": "240",
+            "source": "message"
+          },
+          "subcategory": null,
+          "description": null
+        }
+      },
+      {
+        "status": "ok",
+        "issues": [],
+        "cost_usd": "0.00046455",
+        "latency_s": 1.3057374579366297,
+        "input_tokens": 2789,
+        "output_tokens": 77,
+        "extracted": {
+          "message_type": "correction",
+          "confidence": "high",
+          "amount": {
+            "value": "260",
+            "evidence": "260",
+            "source": "message"
+          },
+          "amount_in_words": false,
+          "currency": null,
+          "payer": null,
+          "participants": null,
+          "exact_amounts": null,
+          "refers_to": {
+            "value": "240",
+            "evidence": "240",
+            "source": "message"
+          },
+          "subcategory": null,
+          "description": null
+        }
+      }
+    ],
+    "case-17": [
+      {
+        "status": "ok",
+        "issues": [],
+        "cost_usd": "0.0004425",
+        "latency_s": 1.1165380410384387,
+        "input_tokens": 2790,
+        "output_tokens": 40,
+        "extracted": {
+          "message_type": "chat",
+          "confidence": "high",
+          "amount": null,
+          "amount_in_words": false,
+          "currency": null,
+          "payer": null,
+          "participants": null,
+          "exact_amounts": null,
+          "refers_to": null,
+          "subcategory": null,
+          "description": null
+        }
+      },
+      {
+        "status": "ok",
+        "issues": [],
+        "cost_usd": "0.0004425",
+        "latency_s": 1.2525413748808205,
+        "input_tokens": 2790,
+        "output_tokens": 40,
+        "extracted": {
+          "message_type": "chat",
+          "confidence": "high",
+          "amount": null,
+          "amount_in_words": false,
+          "currency": null,
+          "payer": null,
+          "participants": null,
+          "exact_amounts": null,
+          "refers_to": null,
+          "subcategory": null,
+          "description": null
+        }
+      },
+      {
+        "status": "ok",
+        "issues": [],
+        "cost_usd": "0.0004425",
+        "latency_s": 1.086426499998197,
+        "input_tokens": 2790,
+        "output_tokens": 40,
+        "extracted": {
+          "message_type": "chat",
+          "confidence": "high",
+          "amount": null,
+          "amount_in_words": false,
+          "currency": null,
+          "payer": null,
+          "participants": null,
+          "exact_amounts": null,
+          "refers_to": null,
+          "subcategory": null,
+          "description": null
+        }
+      }
+    ],
+    "case-19": [
+      {
+        "status": "ok",
+        "issues": [],
+        "cost_usd": "0.00047955",
+        "latency_s": 1.5383912089746445,
+        "input_tokens": 2785,
+        "output_tokens": 103,
+        "extracted": {
+          "message_type": "new",
+          "confidence": "high",
+          "amount": {
+            "value": "85",
+            "evidence": "85",
+            "source": "message"
+          },
+          "amount_in_words": false,
+          "currency": {
+            "value": "ILS",
+            "evidence": null,
+            "source": "default"
+          },
+          "payer": {
+            "value": {
+              "kind": "known",
+              "id": 1
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "participants": {
+            "value": {
+              "only": null,
+              "exclude": []
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "exact_amounts": null,
+          "refers_to": null,
+          "subcategory": "supplies",
+          "description": "cleaning stuff"
+        }
+      },
+      {
+        "status": "ok",
+        "issues": [],
+        "cost_usd": "0.00047955",
+        "latency_s": 1.5183629589155316,
+        "input_tokens": 2785,
+        "output_tokens": 103,
+        "extracted": {
+          "message_type": "new",
+          "confidence": "high",
+          "amount": {
+            "value": "85",
+            "evidence": "85",
+            "source": "message"
+          },
+          "amount_in_words": false,
+          "currency": {
+            "value": "ILS",
+            "evidence": null,
+            "source": "default"
+          },
+          "payer": {
+            "value": {
+              "kind": "known",
+              "id": 1
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "participants": {
+            "value": {
+              "only": null,
+              "exclude": []
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "exact_amounts": null,
+          "refers_to": null,
+          "subcategory": "supplies",
+          "description": "cleaning stuff"
+        }
+      },
+      {
+        "status": "ok",
+        "issues": [],
+        "cost_usd": "0.00047955",
+        "latency_s": 1.4858185001648962,
+        "input_tokens": 2785,
+        "output_tokens": 103,
+        "extracted": {
+          "message_type": "new",
+          "confidence": "high",
+          "amount": {
+            "value": "85",
+            "evidence": "85",
+            "source": "message"
+          },
+          "amount_in_words": false,
+          "currency": {
+            "value": "ILS",
+            "evidence": null,
+            "source": "default"
+          },
+          "payer": {
+            "value": {
+              "kind": "known",
+              "id": 1
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "participants": {
+            "value": {
+              "only": null,
+              "exclude": []
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "exact_amounts": null,
+          "refers_to": null,
+          "subcategory": "supplies",
+          "description": "cleaning stuff"
+        }
+      }
+    ],
+    "case-21": [
+      {
+        "status": "ok",
+        "issues": [],
+        "cost_usd": "0.0004416",
+        "latency_s": 0.955939166015014,
+        "input_tokens": 2784,
+        "output_tokens": 40,
+        "extracted": {
+          "message_type": "chat",
+          "confidence": "high",
+          "amount": null,
+          "amount_in_words": false,
+          "currency": null,
+          "payer": null,
+          "participants": null,
+          "exact_amounts": null,
+          "refers_to": null,
+          "subcategory": null,
+          "description": null
+        }
+      },
+      {
+        "status": "ok",
+        "issues": [],
+        "cost_usd": "0.0004416",
+        "latency_s": 1.0855707079172134,
+        "input_tokens": 2784,
+        "output_tokens": 40,
+        "extracted": {
+          "message_type": "chat",
+          "confidence": "high",
+          "amount": null,
+          "amount_in_words": false,
+          "currency": null,
+          "payer": null,
+          "participants": null,
+          "exact_amounts": null,
+          "refers_to": null,
+          "subcategory": null,
+          "description": null
+        }
+      },
+      {
+        "status": "ok",
+        "issues": [],
+        "cost_usd": "0.0004416",
+        "latency_s": 1.0138175410684198,
+        "input_tokens": 2784,
+        "output_tokens": 40,
+        "extracted": {
+          "message_type": "chat",
+          "confidence": "high",
+          "amount": null,
+          "amount_in_words": false,
+          "currency": null,
+          "payer": null,
+          "participants": null,
+          "exact_amounts": null,
+          "refers_to": null,
+          "subcategory": null,
+          "description": null
+        }
+      }
+    ],
+    "case-22": [
+      {
+        "status": "ok",
+        "issues": [],
+        "cost_usd": "0.00044265",
+        "latency_s": 1.1124287080019712,
+        "input_tokens": 2791,
+        "output_tokens": 40,
+        "extracted": {
+          "message_type": "chat",
+          "confidence": "high",
+          "amount": null,
+          "amount_in_words": false,
+          "currency": null,
+          "payer": null,
+          "participants": null,
+          "exact_amounts": null,
+          "refers_to": null,
+          "subcategory": null,
+          "description": null
+        }
+      },
+      {
+        "status": "ok",
+        "issues": [],
+        "cost_usd": "0.00044265",
+        "latency_s": 1.0335196249652654,
+        "input_tokens": 2791,
+        "output_tokens": 40,
+        "extracted": {
+          "message_type": "chat",
+          "confidence": "high",
+          "amount": null,
+          "amount_in_words": false,
+          "currency": null,
+          "payer": null,
+          "participants": null,
+          "exact_amounts": null,
+          "refers_to": null,
+          "subcategory": null,
+          "description": null
+        }
+      },
+      {
+        "status": "ok",
+        "issues": [],
+        "cost_usd": "0.00044265",
+        "latency_s": 1.0908077920321375,
+        "input_tokens": 2791,
+        "output_tokens": 40,
+        "extracted": {
+          "message_type": "chat",
+          "confidence": "high",
+          "amount": null,
+          "amount_in_words": false,
+          "currency": null,
+          "payer": null,
+          "participants": null,
+          "exact_amounts": null,
+          "refers_to": null,
+          "subcategory": null,
+          "description": null
+        }
+      }
+    ],
+    "case-24": [
+      {
+        "status": "ok",
+        "issues": [],
+        "cost_usd": "0.00044205",
+        "latency_s": 1.0201590000651777,
+        "input_tokens": 2787,
+        "output_tokens": 40,
+        "extracted": {
+          "message_type": "chat",
+          "confidence": "high",
+          "amount": null,
+          "amount_in_words": false,
+          "currency": null,
+          "payer": null,
+          "participants": null,
+          "exact_amounts": null,
+          "refers_to": null,
+          "subcategory": null,
+          "description": null
+        }
+      },
+      {
+        "status": "ok",
+        "issues": [],
+        "cost_usd": "0.00044205",
+        "latency_s": 1.1721068748738617,
+        "input_tokens": 2787,
+        "output_tokens": 40,
+        "extracted": {
+          "message_type": "chat",
+          "confidence": "high",
+          "amount": null,
+          "amount_in_words": false,
+          "currency": null,
+          "payer": null,
+          "participants": null,
+          "exact_amounts": null,
+          "refers_to": null,
+          "subcategory": null,
+          "description": null
+        }
+      },
+      {
+        "status": "ok",
+        "issues": [],
+        "cost_usd": "0.00044205",
+        "latency_s": 0.92748879105784,
+        "input_tokens": 2787,
+        "output_tokens": 40,
+        "extracted": {
+          "message_type": "chat",
+          "confidence": "high",
+          "amount": null,
+          "amount_in_words": false,
+          "currency": null,
+          "payer": null,
+          "participants": null,
+          "exact_amounts": null,
+          "refers_to": null,
+          "subcategory": null,
+          "description": null
+        }
+      }
+    ],
+    "case-26": [
+      {
+        "status": "ok",
+        "issues": [],
+        "cost_usd": "0.00044325",
+        "latency_s": 1.7471002079546452,
+        "input_tokens": 2795,
+        "output_tokens": 40,
+        "extracted": {
+          "message_type": "chat",
+          "confidence": "high",
+          "amount": null,
+          "amount_in_words": false,
+          "currency": null,
+          "payer": null,
+          "participants": null,
+          "exact_amounts": null,
+          "refers_to": null,
+          "subcategory": null,
+          "description": null
+        }
+      },
+      {
+        "status": "ok",
+        "issues": [],
+        "cost_usd": "0.00044325",
+        "latency_s": 1.1146543330978602,
+        "input_tokens": 2795,
+        "output_tokens": 40,
+        "extracted": {
+          "message_type": "chat",
+          "confidence": "high",
+          "amount": null,
+          "amount_in_words": false,
+          "currency": null,
+          "payer": null,
+          "participants": null,
+          "exact_amounts": null,
+          "refers_to": null,
+          "subcategory": null,
+          "description": null
+        }
+      },
+      {
+        "status": "ok",
+        "issues": [],
+        "cost_usd": "0.00044325",
+        "latency_s": 1.0704562081955373,
+        "input_tokens": 2795,
+        "output_tokens": 40,
+        "extracted": {
+          "message_type": "chat",
+          "confidence": "high",
+          "amount": null,
+          "amount_in_words": false,
+          "currency": null,
+          "payer": null,
+          "participants": null,
+          "exact_amounts": null,
+          "refers_to": null,
+          "subcategory": null,
+          "description": null
+        }
+      }
+    ],
+    "case-27": [
+      {
+        "status": "ok",
+        "issues": [],
+        "cost_usd": "0.00044235",
+        "latency_s": 1.0798092079348862,
+        "input_tokens": 2789,
+        "output_tokens": 40,
+        "extracted": {
+          "message_type": "chat",
+          "confidence": "high",
+          "amount": null,
+          "amount_in_words": false,
+          "currency": null,
+          "payer": null,
+          "participants": null,
+          "exact_amounts": null,
+          "refers_to": null,
+          "subcategory": null,
+          "description": null
+        }
+      },
+      {
+        "status": "ok",
+        "issues": [],
+        "cost_usd": "0.00044235",
+        "latency_s": 1.0753779590595514,
+        "input_tokens": 2789,
+        "output_tokens": 40,
+        "extracted": {
+          "message_type": "chat",
+          "confidence": "high",
+          "amount": null,
+          "amount_in_words": false,
+          "currency": null,
+          "payer": null,
+          "participants": null,
+          "exact_amounts": null,
+          "refers_to": null,
+          "subcategory": null,
+          "description": null
+        }
+      },
+      {
+        "status": "ok",
+        "issues": [],
+        "cost_usd": "0.00044235",
+        "latency_s": 0.9672798339743167,
+        "input_tokens": 2789,
+        "output_tokens": 40,
+        "extracted": {
+          "message_type": "chat",
+          "confidence": "high",
+          "amount": null,
+          "amount_in_words": false,
+          "currency": null,
+          "payer": null,
+          "participants": null,
+          "exact_amounts": null,
+          "refers_to": null,
+          "subcategory": null,
+          "description": null
+        }
+      }
+    ],
+    "case-29": [
+      {
+        "status": "ok",
+        "issues": [],
+        "cost_usd": "0.00044265",
+        "latency_s": 0.9543436248786747,
+        "input_tokens": 2791,
+        "output_tokens": 40,
+        "extracted": {
+          "message_type": "chat",
+          "confidence": "high",
+          "amount": null,
+          "amount_in_words": false,
+          "currency": null,
+          "payer": null,
+          "participants": null,
+          "exact_amounts": null,
+          "refers_to": null,
+          "subcategory": null,
+          "description": null
+        }
+      },
+      {
+        "status": "ok",
+        "issues": [],
+        "cost_usd": "0.00044265",
+        "latency_s": 1.0551030829083174,
+        "input_tokens": 2791,
+        "output_tokens": 40,
+        "extracted": {
+          "message_type": "chat",
+          "confidence": "high",
+          "amount": null,
+          "amount_in_words": false,
+          "currency": null,
+          "payer": null,
+          "participants": null,
+          "exact_amounts": null,
+          "refers_to": null,
+          "subcategory": null,
+          "description": null
+        }
+      },
+      {
+        "status": "ok",
+        "issues": [],
+        "cost_usd": "0.00044265",
+        "latency_s": 0.9826483340002596,
+        "input_tokens": 2791,
+        "output_tokens": 40,
+        "extracted": {
+          "message_type": "chat",
+          "confidence": "high",
+          "amount": null,
+          "amount_in_words": false,
+          "currency": null,
+          "payer": null,
+          "participants": null,
+          "exact_amounts": null,
+          "refers_to": null,
+          "subcategory": null,
+          "description": null
+        }
+      }
+    ],
+    "case-31": [
+      {
+        "status": "ok",
+        "issues": [],
+        "cost_usd": "0.00044295",
+        "latency_s": 1.0711651660967618,
+        "input_tokens": 2793,
+        "output_tokens": 40,
+        "extracted": {
+          "message_type": "chat",
+          "confidence": "high",
+          "amount": null,
+          "amount_in_words": false,
+          "currency": null,
+          "payer": null,
+          "participants": null,
+          "exact_amounts": null,
+          "refers_to": null,
+          "subcategory": null,
+          "description": null
+        }
+      },
+      {
+        "status": "ok",
+        "issues": [],
+        "cost_usd": "0.00044295",
+        "latency_s": 1.0444610000122339,
+        "input_tokens": 2793,
+        "output_tokens": 40,
+        "extracted": {
+          "message_type": "chat",
+          "confidence": "high",
+          "amount": null,
+          "amount_in_words": false,
+          "currency": null,
+          "payer": null,
+          "participants": null,
+          "exact_amounts": null,
+          "refers_to": null,
+          "subcategory": null,
+          "description": null
+        }
+      },
+      {
+        "status": "ok",
+        "issues": [],
+        "cost_usd": "0.00044295",
+        "latency_s": 1.175458958139643,
+        "input_tokens": 2793,
+        "output_tokens": 40,
+        "extracted": {
+          "message_type": "chat",
+          "confidence": "high",
+          "amount": null,
+          "amount_in_words": false,
+          "currency": null,
+          "payer": null,
+          "participants": null,
+          "exact_amounts": null,
+          "refers_to": null,
+          "subcategory": null,
+          "description": null
+        }
+      }
+    ],
+    "case-32": [
+      {
+        "status": "ok",
+        "issues": [],
+        "cost_usd": "0.0004416",
+        "latency_s": 1.083903833059594,
+        "input_tokens": 2784,
+        "output_tokens": 40,
+        "extracted": {
+          "message_type": "chat",
+          "confidence": "high",
+          "amount": null,
+          "amount_in_words": false,
+          "currency": null,
+          "payer": null,
+          "participants": null,
+          "exact_amounts": null,
+          "refers_to": null,
+          "subcategory": null,
+          "description": null
+        }
+      },
+      {
+        "status": "ok",
+        "issues": [],
+        "cost_usd": "0.0004416",
+        "latency_s": 0.9212253750301898,
+        "input_tokens": 2784,
+        "output_tokens": 40,
+        "extracted": {
+          "message_type": "chat",
+          "confidence": "high",
+          "amount": null,
+          "amount_in_words": false,
+          "currency": null,
+          "payer": null,
+          "participants": null,
+          "exact_amounts": null,
+          "refers_to": null,
+          "subcategory": null,
+          "description": null
+        }
+      },
+      {
+        "status": "ok",
+        "issues": [],
+        "cost_usd": "0.0004416",
+        "latency_s": 1.0873236251063645,
+        "input_tokens": 2784,
+        "output_tokens": 40,
+        "extracted": {
+          "message_type": "chat",
+          "confidence": "high",
+          "amount": null,
+          "amount_in_words": false,
+          "currency": null,
+          "payer": null,
+          "participants": null,
+          "exact_amounts": null,
+          "refers_to": null,
+          "subcategory": null,
+          "description": null
+        }
+      }
+    ],
+    "case-33": [
+      {
+        "status": "ok",
+        "issues": [],
+        "cost_usd": "0.0004806",
+        "latency_s": 1.4903321659658104,
+        "input_tokens": 2800,
+        "output_tokens": 101,
+        "extracted": {
+          "message_type": "new",
+          "confidence": "high",
+          "amount": {
+            "value": "90",
+            "evidence": "90",
+            "source": "message"
+          },
+          "amount_in_words": false,
+          "currency": {
+            "value": "ILS",
+            "evidence": null,
+            "source": "default"
+          },
+          "payer": {
+            "value": {
+              "kind": "known",
+              "id": 2
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "participants": {
+            "value": {
+              "only": null,
+              "exclude": []
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "exact_amounts": null,
+          "refers_to": null,
+          "subcategory": "other",
+          "description": "פיצה"
+        }
+      },
+      {
+        "status": "ok",
+        "issues": [],
+        "cost_usd": "0.0004806",
+        "latency_s": 1.4022613330744207,
+        "input_tokens": 2800,
+        "output_tokens": 101,
+        "extracted": {
+          "message_type": "new",
+          "confidence": "high",
+          "amount": {
+            "value": "90",
+            "evidence": "90",
+            "source": "message"
+          },
+          "amount_in_words": false,
+          "currency": {
+            "value": "ILS",
+            "evidence": null,
+            "source": "default"
+          },
+          "payer": {
+            "value": {
+              "kind": "known",
+              "id": 2
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "participants": {
+            "value": {
+              "only": null,
+              "exclude": []
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "exact_amounts": null,
+          "refers_to": null,
+          "subcategory": "other",
+          "description": "פיצה"
+        }
+      },
+      {
+        "status": "ok",
+        "issues": [],
+        "cost_usd": "0.0004806",
+        "latency_s": 1.44616979197599,
+        "input_tokens": 2800,
+        "output_tokens": 101,
+        "extracted": {
+          "message_type": "new",
+          "confidence": "high",
+          "amount": {
+            "value": "90",
+            "evidence": "90",
+            "source": "message"
+          },
+          "amount_in_words": false,
+          "currency": {
+            "value": "ILS",
+            "evidence": null,
+            "source": "default"
+          },
+          "payer": {
+            "value": {
+              "kind": "known",
+              "id": 2
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "participants": {
+            "value": {
+              "only": null,
+              "exclude": []
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "exact_amounts": null,
+          "refers_to": null,
+          "subcategory": "other",
+          "description": "פיצה"
+        }
+      }
+    ],
+    "case-35": [
+      {
+        "status": "ok",
+        "issues": [],
+        "cost_usd": "0.0004857",
+        "latency_s": 1.4778014160692692,
+        "input_tokens": 2790,
+        "output_tokens": 112,
+        "extracted": {
+          "message_type": "new",
+          "confidence": "high",
+          "amount": {
+            "value": "200",
+            "evidence": "מאתיים",
+            "source": "message"
+          },
+          "amount_in_words": true,
+          "currency": {
+            "value": "ILS",
+            "evidence": null,
+            "source": "default"
+          },
+          "payer": {
+            "value": {
+              "kind": "known",
+              "id": 4
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "participants": {
+            "value": {
+              "only": null,
+              "exclude": []
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "exact_amounts": null,
+          "refers_to": null,
+          "subcategory": "cleaning",
+          "description": "על הניקיון"
+        }
+      },
+      {
+        "status": "ok",
+        "issues": [],
+        "cost_usd": "0.0004857",
+        "latency_s": 1.4243429999332875,
+        "input_tokens": 2790,
+        "output_tokens": 112,
+        "extracted": {
+          "message_type": "new",
+          "confidence": "high",
+          "amount": {
+            "value": "200",
+            "evidence": "מאתיים",
+            "source": "message"
+          },
+          "amount_in_words": true,
+          "currency": {
+            "value": "ILS",
+            "evidence": null,
+            "source": "default"
+          },
+          "payer": {
+            "value": {
+              "kind": "known",
+              "id": 4
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "participants": {
+            "value": {
+              "only": null,
+              "exclude": []
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "exact_amounts": null,
+          "refers_to": null,
+          "subcategory": "cleaning",
+          "description": "על הניקיון"
+        }
+      },
+      {
+        "status": "ok",
+        "issues": [],
+        "cost_usd": "0.0004857",
+        "latency_s": 1.6635667500086129,
+        "input_tokens": 2790,
+        "output_tokens": 112,
+        "extracted": {
+          "message_type": "new",
+          "confidence": "high",
+          "amount": {
+            "value": "200",
+            "evidence": "מאתיים",
+            "source": "message"
+          },
+          "amount_in_words": true,
+          "currency": {
+            "value": "ILS",
+            "evidence": null,
+            "source": "default"
+          },
+          "payer": {
+            "value": {
+              "kind": "known",
+              "id": 4
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "participants": {
+            "value": {
+              "only": null,
+              "exclude": []
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "exact_amounts": null,
+          "refers_to": null,
+          "subcategory": "cleaning",
+          "description": "על הניקיון"
+        }
+      }
+    ],
+    "case-37": [
+      {
+        "status": "ok",
+        "issues": [],
+        "cost_usd": "0.00048825",
+        "latency_s": 1.77587741590105,
+        "input_tokens": 2803,
+        "output_tokens": 113,
+        "extracted": {
+          "message_type": "new",
+          "confidence": "medium",
+          "amount": {
+            "value": "300",
+            "evidence": "300",
+            "source": "message"
+          },
+          "amount_in_words": false,
+          "currency": {
+            "value": "ILS",
+            "evidence": null,
+            "source": "default"
+          },
+          "payer": {
+            "value": {
+              "kind": "known",
+              "id": 1
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "participants": {
+            "value": {
+              "only": null,
+              "exclude": [
+                {
+                  "kind": "known",
+                  "id": 5
+                }
+              ]
+            },
+            "evidence": "בלי דני",
+            "source": "message"
+          },
+          "exact_amounts": null,
+          "refers_to": null,
+          "subcategory": "groceries",
+          "description": "סופר"
+        }
+      },
+      {
+        "status": "ok",
+        "issues": [],
+        "cost_usd": "0.00048825",
+        "latency_s": 1.578535333974287,
+        "input_tokens": 2803,
+        "output_tokens": 113,
+        "extracted": {
+          "message_type": "new",
+          "confidence": "medium",
+          "amount": {
+            "value": "300",
+            "evidence": "300",
+            "source": "message"
+          },
+          "amount_in_words": false,
+          "currency": {
+            "value": "ILS",
+            "evidence": null,
+            "source": "default"
+          },
+          "payer": {
+            "value": {
+              "kind": "known",
+              "id": 1
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "participants": {
+            "value": {
+              "only": null,
+              "exclude": [
+                {
+                  "kind": "known",
+                  "id": 5
+                }
+              ]
+            },
+            "evidence": "בלי דני",
+            "source": "message"
+          },
+          "exact_amounts": null,
+          "refers_to": null,
+          "subcategory": "groceries",
+          "description": "סופר"
+        }
+      },
+      {
+        "status": "ok",
+        "issues": [],
+        "cost_usd": "0.00048825",
+        "latency_s": 1.575339791830629,
+        "input_tokens": 2803,
+        "output_tokens": 113,
+        "extracted": {
+          "message_type": "new",
+          "confidence": "medium",
+          "amount": {
+            "value": "300",
+            "evidence": "300",
+            "source": "message"
+          },
+          "amount_in_words": false,
+          "currency": {
+            "value": "ILS",
+            "evidence": null,
+            "source": "default"
+          },
+          "payer": {
+            "value": {
+              "kind": "known",
+              "id": 1
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "participants": {
+            "value": {
+              "only": null,
+              "exclude": [
+                {
+                  "kind": "known",
+                  "id": 5
+                }
+              ]
+            },
+            "evidence": "בלי דני",
+            "source": "message"
+          },
+          "exact_amounts": null,
+          "refers_to": null,
+          "subcategory": "groceries",
+          "description": "סופר"
+        }
+      }
+    ],
+    "case-39": [
+      {
+        "status": "ok",
+        "issues": [],
+        "cost_usd": "0.0004797",
+        "latency_s": 1.306477541802451,
+        "input_tokens": 2786,
+        "output_tokens": 103,
+        "extracted": {
+          "message_type": "new",
+          "confidence": "high",
+          "amount": {
+            "value": "60",
+            "evidence": "60",
+            "source": "message"
+          },
+          "amount_in_words": false,
+          "currency": {
+            "value": "ILS",
+            "evidence": null,
+            "source": "default"
+          },
+          "payer": {
+            "value": {
+              "kind": "known",
+              "id": 2
+            },
+            "evidence": "Danny paid",
+            "source": "message"
+          },
+          "participants": {
+            "value": {
+              "only": null,
+              "exclude": []
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "exact_amounts": null,
+          "refers_to": null,
+          "subcategory": "gas",
+          "description": "for the gas"
+        }
+      },
+      {
+        "status": "ok",
+        "issues": [],
+        "cost_usd": "0.0004797",
+        "latency_s": 1.312334334012121,
+        "input_tokens": 2786,
+        "output_tokens": 103,
+        "extracted": {
+          "message_type": "new",
+          "confidence": "high",
+          "amount": {
+            "value": "60",
+            "evidence": "60",
+            "source": "message"
+          },
+          "amount_in_words": false,
+          "currency": {
+            "value": "ILS",
+            "evidence": null,
+            "source": "default"
+          },
+          "payer": {
+            "value": {
+              "kind": "known",
+              "id": 2
+            },
+            "evidence": "Danny paid",
+            "source": "message"
+          },
+          "participants": {
+            "value": {
+              "only": null,
+              "exclude": []
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "exact_amounts": null,
+          "refers_to": null,
+          "subcategory": "gas",
+          "description": "for the gas"
+        }
+      },
+      {
+        "status": "ok",
+        "issues": [],
+        "cost_usd": "0.0004797",
+        "latency_s": 1.4409265001304448,
+        "input_tokens": 2786,
+        "output_tokens": 103,
+        "extracted": {
+          "message_type": "new",
+          "confidence": "high",
+          "amount": {
+            "value": "60",
+            "evidence": "60",
+            "source": "message"
+          },
+          "amount_in_words": false,
+          "currency": {
+            "value": "ILS",
+            "evidence": null,
+            "source": "default"
+          },
+          "payer": {
+            "value": {
+              "kind": "known",
+              "id": 2
+            },
+            "evidence": "Danny paid",
+            "source": "message"
+          },
+          "participants": {
+            "value": {
+              "only": null,
+              "exclude": []
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "exact_amounts": null,
+          "refers_to": null,
+          "subcategory": "gas",
+          "description": "for the gas"
+        }
+      }
+    ],
+    "case-41": [
+      {
+        "status": "ok",
+        "issues": [],
+        "cost_usd": "0.00048105",
+        "latency_s": 1.3043275829404593,
+        "input_tokens": 2787,
+        "output_tokens": 105,
+        "extracted": {
+          "message_type": "new",
+          "confidence": "high",
+          "amount": {
+            "value": "420",
+            "evidence": "420",
+            "source": "message"
+          },
+          "amount_in_words": false,
+          "currency": {
+            "value": "ILS",
+            "evidence": null,
+            "source": "default"
+          },
+          "payer": {
+            "value": {
+              "kind": "known",
+              "id": 3
+            },
+            "evidence": "משה שילם",
+            "source": "message"
+          },
+          "participants": {
+            "value": {
+              "only": null,
+              "exclude": []
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "exact_amounts": null,
+          "refers_to": null,
+          "subcategory": "groceries",
+          "description": "בסופר"
+        }
+      },
+      {
+        "status": "ok",
+        "issues": [],
+        "cost_usd": "0.00048105",
+        "latency_s": 1.5126459999009967,
+        "input_tokens": 2787,
+        "output_tokens": 105,
+        "extracted": {
+          "message_type": "new",
+          "confidence": "high",
+          "amount": {
+            "value": "420",
+            "evidence": "420",
+            "source": "message"
+          },
+          "amount_in_words": false,
+          "currency": {
+            "value": "ILS",
+            "evidence": null,
+            "source": "default"
+          },
+          "payer": {
+            "value": {
+              "kind": "known",
+              "id": 3
+            },
+            "evidence": "משה שילם",
+            "source": "message"
+          },
+          "participants": {
+            "value": {
+              "only": null,
+              "exclude": []
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "exact_amounts": null,
+          "refers_to": null,
+          "subcategory": "groceries",
+          "description": "בסופר"
+        }
+      },
+      {
+        "status": "ok",
+        "issues": [],
+        "cost_usd": "0.00048105",
+        "latency_s": 1.5294398330152035,
+        "input_tokens": 2787,
+        "output_tokens": 105,
+        "extracted": {
+          "message_type": "new",
+          "confidence": "high",
+          "amount": {
+            "value": "420",
+            "evidence": "420",
+            "source": "message"
+          },
+          "amount_in_words": false,
+          "currency": {
+            "value": "ILS",
+            "evidence": null,
+            "source": "default"
+          },
+          "payer": {
+            "value": {
+              "kind": "known",
+              "id": 3
+            },
+            "evidence": "משה שילם",
+            "source": "message"
+          },
+          "participants": {
+            "value": {
+              "only": null,
+              "exclude": []
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "exact_amounts": null,
+          "refers_to": null,
+          "subcategory": "groceries",
+          "description": "בסופר"
+        }
+      }
+    ],
+    "case-42": [
+      {
+        "status": "ok",
+        "issues": [],
+        "cost_usd": "0.00049365",
+        "latency_s": 1.8924854998476803,
+        "input_tokens": 2791,
+        "output_tokens": 125,
+        "extracted": {
+          "message_type": "new",
+          "confidence": "high",
+          "amount": {
+            "value": "140",
+            "evidence": "140",
+            "source": "message"
+          },
+          "amount_in_words": false,
+          "currency": {
+            "value": "ILS",
+            "evidence": null,
+            "source": "default"
+          },
+          "payer": {
+            "value": {
+              "kind": "known",
+              "id": 1
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "participants": {
+            "value": {
+              "only": [
+                {
+                  "kind": "known",
+                  "id": 4
+                }
+              ],
+              "exclude": [
+                {
+                  "kind": "known",
+                  "id": 2
+                }
+              ]
+            },
+            "evidence": "עם מיכל ובלי דני",
+            "source": "message"
+          },
+          "exact_amounts": null,
+          "refers_to": null,
+          "subcategory": "other",
+          "description": "פיצה"
+        }
+      },
+      {
+        "status": "ok",
+        "issues": [],
+        "cost_usd": "0.00049365",
+        "latency_s": 1.7246717498637736,
+        "input_tokens": 2791,
+        "output_tokens": 125,
+        "extracted": {
+          "message_type": "new",
+          "confidence": "high",
+          "amount": {
+            "value": "140",
+            "evidence": "140",
+            "source": "message"
+          },
+          "amount_in_words": false,
+          "currency": {
+            "value": "ILS",
+            "evidence": null,
+            "source": "default"
+          },
+          "payer": {
+            "value": {
+              "kind": "known",
+              "id": 1
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "participants": {
+            "value": {
+              "only": [
+                {
+                  "kind": "known",
+                  "id": 4
+                }
+              ],
+              "exclude": [
+                {
+                  "kind": "known",
+                  "id": 2
+                }
+              ]
+            },
+            "evidence": "עם מיכל ובלי דני",
+            "source": "message"
+          },
+          "exact_amounts": null,
+          "refers_to": null,
+          "subcategory": "restaurant",
+          "description": "פיצה"
+        }
+      },
+      {
+        "status": "ok",
+        "issues": [],
+        "cost_usd": "0.00049365",
+        "latency_s": 1.557807832956314,
+        "input_tokens": 2791,
+        "output_tokens": 125,
+        "extracted": {
+          "message_type": "new",
+          "confidence": "high",
+          "amount": {
+            "value": "140",
+            "evidence": "140",
+            "source": "message"
+          },
+          "amount_in_words": false,
+          "currency": {
+            "value": "ILS",
+            "evidence": null,
+            "source": "default"
+          },
+          "payer": {
+            "value": {
+              "kind": "known",
+              "id": 1
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "participants": {
+            "value": {
+              "only": [
+                {
+                  "kind": "known",
+                  "id": 4
+                }
+              ],
+              "exclude": [
+                {
+                  "kind": "known",
+                  "id": 2
+                }
+              ]
+            },
+            "evidence": "עם מיכל ובלי דני",
+            "source": "message"
+          },
+          "exact_amounts": null,
+          "refers_to": null,
+          "subcategory": "restaurant",
+          "description": "פיצה"
+        }
+      }
+    ],
+    "case-44": [
+      {
+        "status": "ok",
+        "issues": [],
+        "cost_usd": "0.0004569",
+        "latency_s": 1.169514250010252,
+        "input_tokens": 2786,
+        "output_tokens": 65,
+        "extracted": {
+          "message_type": "correction",
+          "confidence": "high",
+          "amount": null,
+          "amount_in_words": false,
+          "currency": null,
+          "payer": null,
+          "participants": null,
+          "exact_amounts": null,
+          "refers_to": {
+            "value": "160",
+            "evidence": "160",
+            "source": "message"
+          },
+          "subcategory": null,
+          "description": null
+        }
+      },
+      {
+        "status": "ok",
+        "issues": [],
+        "cost_usd": "0.0004569",
+        "latency_s": 1.3296289590653032,
+        "input_tokens": 2786,
+        "output_tokens": 65,
+        "extracted": {
+          "message_type": "correction",
+          "confidence": "high",
+          "amount": null,
+          "amount_in_words": false,
+          "currency": null,
+          "payer": null,
+          "participants": null,
+          "exact_amounts": null,
+          "refers_to": {
+            "value": "160",
+            "evidence": "160",
+            "source": "message"
+          },
+          "subcategory": null,
+          "description": null
+        }
+      },
+      {
+        "status": "ok",
+        "issues": [],
+        "cost_usd": "0.0004569",
+        "latency_s": 1.1464355001226068,
+        "input_tokens": 2786,
+        "output_tokens": 65,
+        "extracted": {
+          "message_type": "correction",
+          "confidence": "high",
+          "amount": null,
+          "amount_in_words": false,
+          "currency": null,
+          "payer": null,
+          "participants": null,
+          "exact_amounts": null,
+          "refers_to": {
+            "value": "160",
+            "evidence": "160",
+            "source": "message"
+          },
+          "subcategory": null,
+          "description": null
+        }
+      }
+    ],
+    "case-46": [
+      {
+        "status": "ok",
+        "issues": [],
+        "cost_usd": "0.00045615",
+        "latency_s": 1.2050358750857413,
+        "input_tokens": 2793,
+        "output_tokens": 62,
+        "extracted": {
+          "message_type": "delete",
+          "confidence": "high",
+          "amount": null,
+          "amount_in_words": false,
+          "currency": null,
+          "payer": null,
+          "participants": null,
+          "exact_amounts": null,
+          "refers_to": {
+            "value": "החשמל",
+            "evidence": "החשמל",
+            "source": "message"
+          },
+          "subcategory": null,
+          "description": null
+        }
+      },
+      {
+        "status": "ok",
+        "issues": [],
+        "cost_usd": "0.00045975",
+        "latency_s": 1.221131042111665,
+        "input_tokens": 2793,
+        "output_tokens": 68,
+        "extracted": {
+          "message_type": "delete",
+          "confidence": "high",
+          "amount": null,
+          "amount_in_words": false,
+          "currency": null,
+          "payer": null,
+          "participants": null,
+          "exact_amounts": null,
+          "refers_to": {
+            "value": "החשמל",
+            "evidence": "החשמל",
+            "source": "message"
+          },
+          "subcategory": null,
+          "description": null
+        }
+      },
+      {
+        "status": "ok",
+        "issues": [],
+        "cost_usd": "0.00045615",
+        "latency_s": 1.1382428749930114,
+        "input_tokens": 2793,
+        "output_tokens": 62,
+        "extracted": {
+          "message_type": "delete",
+          "confidence": "high",
+          "amount": null,
+          "amount_in_words": false,
+          "currency": null,
+          "payer": null,
+          "participants": null,
+          "exact_amounts": null,
+          "refers_to": {
+            "value": "החשמל",
+            "evidence": "החשמל",
+            "source": "message"
+          },
+          "subcategory": null,
+          "description": null
+        }
+      }
+    ],
+    "case-47": [
+      {
+        "status": "ok",
+        "issues": [],
+        "cost_usd": "0.00048105",
+        "latency_s": 1.468119208002463,
+        "input_tokens": 2791,
+        "output_tokens": 104,
+        "extracted": {
+          "message_type": "new",
+          "confidence": "low",
+          "amount": {
+            "value": "20",
+            "evidence": "20",
+            "source": "message"
+          },
+          "amount_in_words": false,
+          "currency": null,
+          "payer": {
+            "value": {
+              "kind": "known",
+              "id": 3
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "participants": {
+            "value": {
+              "only": null,
+              "exclude": []
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "exact_amounts": null,
+          "refers_to": null,
+          "subcategory": "other",
+          "description": "מתנה לבעל הבית"
+        }
+      },
+      {
+        "status": "ok",
+        "issues": [],
+        "cost_usd": "0.00048105",
+        "latency_s": 1.4119785828515887,
+        "input_tokens": 2791,
+        "output_tokens": 104,
+        "extracted": {
+          "message_type": "new",
+          "confidence": "low",
+          "amount": {
+            "value": "20",
+            "evidence": "20",
+            "source": "message"
+          },
+          "amount_in_words": false,
+          "currency": null,
+          "payer": {
+            "value": {
+              "kind": "known",
+              "id": 3
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "participants": {
+            "value": {
+              "only": null,
+              "exclude": []
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "exact_amounts": null,
+          "refers_to": null,
+          "subcategory": "other",
+          "description": "מתנה לבעל הבית"
+        }
+      },
+      {
+        "status": "ok",
+        "issues": [],
+        "cost_usd": "0.00048105",
+        "latency_s": 1.457751499954611,
+        "input_tokens": 2791,
+        "output_tokens": 104,
+        "extracted": {
+          "message_type": "new",
+          "confidence": "low",
+          "amount": {
+            "value": "20",
+            "evidence": "20",
+            "source": "message"
+          },
+          "amount_in_words": false,
+          "currency": null,
+          "payer": {
+            "value": {
+              "kind": "known",
+              "id": 3
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "participants": {
+            "value": {
+              "only": null,
+              "exclude": []
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "exact_amounts": null,
+          "refers_to": null,
+          "subcategory": "other",
+          "description": "מתנה לבעל הבית"
+        }
+      }
+    ],
+    "case-48": [
+      {
+        "status": "ok",
+        "issues": [],
+        "cost_usd": "0.00044235",
+        "latency_s": 0.87706866604276,
+        "input_tokens": 2789,
+        "output_tokens": 40,
+        "extracted": {
+          "message_type": "chat",
+          "confidence": "low",
+          "amount": null,
+          "amount_in_words": false,
+          "currency": null,
+          "payer": null,
+          "participants": null,
+          "exact_amounts": null,
+          "refers_to": null,
+          "subcategory": null,
+          "description": null
+        }
+      },
+      {
+        "status": "ok",
+        "issues": [],
+        "cost_usd": "0.00044235",
+        "latency_s": 1.0776044169906527,
+        "input_tokens": 2789,
+        "output_tokens": 40,
+        "extracted": {
+          "message_type": "chat",
+          "confidence": "high",
+          "amount": null,
+          "amount_in_words": false,
+          "currency": null,
+          "payer": null,
+          "participants": null,
+          "exact_amounts": null,
+          "refers_to": null,
+          "subcategory": null,
+          "description": null
+        }
+      },
+      {
+        "status": "ok",
+        "issues": [],
+        "cost_usd": "0.00044235",
+        "latency_s": 1.0956380001734942,
+        "input_tokens": 2789,
+        "output_tokens": 40,
+        "extracted": {
+          "message_type": "chat",
+          "confidence": "high",
+          "amount": null,
+          "amount_in_words": false,
+          "currency": null,
+          "payer": null,
+          "participants": null,
+          "exact_amounts": null,
+          "refers_to": null,
+          "subcategory": null,
+          "description": null
+        }
+      }
+    ],
+    "case-49": [
+      {
+        "status": "ok",
+        "issues": [],
+        "cost_usd": "0.00047925",
+        "latency_s": 1.371384666999802,
+        "input_tokens": 2787,
+        "output_tokens": 102,
+        "extracted": {
+          "message_type": "new",
+          "confidence": "high",
+          "amount": {
+            "value": "120",
+            "evidence": "120",
+            "source": "message"
+          },
+          "amount_in_words": false,
+          "currency": {
+            "value": "ILS",
+            "evidence": null,
+            "source": "default"
+          },
+          "payer": {
+            "value": {
+              "kind": "known",
+              "id": 4
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "participants": {
+            "value": {
+              "only": null,
+              "exclude": []
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "exact_amounts": null,
+          "refers_to": null,
+          "subcategory": "groceries",
+          "description": "groceries"
+        }
+      },
+      {
+        "status": "ok",
+        "issues": [],
+        "cost_usd": "0.00048285",
+        "latency_s": 1.7788042910397053,
+        "input_tokens": 2787,
+        "output_tokens": 108,
+        "extracted": {
+          "message_type": "new",
+          "confidence": "high",
+          "amount": {
+            "value": "120",
+            "evidence": "120",
+            "source": "message"
+          },
+          "amount_in_words": false,
+          "currency": {
+            "value": "ILS",
+            "evidence": null,
+            "source": "default"
+          },
+          "payer": {
+            "value": {
+              "kind": "known",
+              "id": 4
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "participants": {
+            "value": {
+              "only": null,
+              "exclude": []
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "exact_amounts": null,
+          "refers_to": null,
+          "subcategory": "groceries",
+          "description": "groceries"
+        }
+      },
+      {
+        "status": "ok",
+        "issues": [],
+        "cost_usd": "0.00047925",
+        "latency_s": 1.3819528750609607,
+        "input_tokens": 2787,
+        "output_tokens": 102,
+        "extracted": {
+          "message_type": "new",
+          "confidence": "high",
+          "amount": {
+            "value": "120",
+            "evidence": "120",
+            "source": "message"
+          },
+          "amount_in_words": false,
+          "currency": {
+            "value": "ILS",
+            "evidence": null,
+            "source": "default"
+          },
+          "payer": {
+            "value": {
+              "kind": "known",
+              "id": 4
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "participants": {
+            "value": {
+              "only": null,
+              "exclude": []
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "exact_amounts": null,
+          "refers_to": null,
+          "subcategory": "groceries",
+          "description": "groceries"
+        }
+      }
+    ],
+    "case-50": [
+      {
+        "status": "ok",
+        "issues": [],
+        "cost_usd": "0.00048585",
+        "latency_s": 1.6573503750842065,
+        "input_tokens": 2791,
+        "output_tokens": 112,
+        "extracted": {
+          "message_type": "new",
+          "confidence": "high",
+          "amount": {
+            "value": "57",
+            "evidence": "57",
+            "source": "message"
+          },
+          "amount_in_words": false,
+          "currency": {
+            "value": "ILS",
+            "evidence": null,
+            "source": "default"
+          },
+          "payer": {
+            "value": {
+              "kind": "known",
+              "id": 2
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "participants": {
+            "value": {
+              "only": null,
+              "exclude": []
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "exact_amounts": null,
+          "refers_to": null,
+          "subcategory": "groceries",
+          "description": "ירקות ופירות בשוק"
+        }
+      },
+      {
+        "status": "ok",
+        "issues": [],
+        "cost_usd": "0.00048225",
+        "latency_s": 1.4500506669282913,
+        "input_tokens": 2791,
+        "output_tokens": 106,
+        "extracted": {
+          "message_type": "new",
+          "confidence": "high",
+          "amount": {
+            "value": "57",
+            "evidence": "57",
+            "source": "message"
+          },
+          "amount_in_words": false,
+          "currency": {
+            "value": "ILS",
+            "evidence": null,
+            "source": "default"
+          },
+          "payer": {
+            "value": {
+              "kind": "known",
+              "id": 2
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "participants": {
+            "value": {
+              "only": null,
+              "exclude": []
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "exact_amounts": null,
+          "refers_to": null,
+          "subcategory": "groceries",
+          "description": "ירקות ופירות בשוק"
+        }
+      },
+      {
+        "status": "ok",
+        "issues": [],
+        "cost_usd": "0.00048585",
+        "latency_s": 1.6768566251266748,
+        "input_tokens": 2791,
+        "output_tokens": 112,
+        "extracted": {
+          "message_type": "new",
+          "confidence": "high",
+          "amount": {
+            "value": "57",
+            "evidence": "57",
+            "source": "message"
+          },
+          "amount_in_words": false,
+          "currency": {
+            "value": "ILS",
+            "evidence": null,
+            "source": "default"
+          },
+          "payer": {
+            "value": {
+              "kind": "known",
+              "id": 2
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "participants": {
+            "value": {
+              "only": null,
+              "exclude": []
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "exact_amounts": null,
+          "refers_to": null,
+          "subcategory": "groceries",
+          "description": "ירקות ופירות בשוק"
+        }
+      }
+    ],
+    "case-51": [
+      {
+        "status": "needs_clarification",
+        "issues": [
+          "refers_to: only a correction or delete may say which expense it means"
+        ],
+        "cost_usd": "0.00049095",
+        "latency_s": 1.9703618749044836,
+        "input_tokens": 2785,
+        "output_tokens": 122,
+        "extracted": {
+          "message_type": "new",
+          "confidence": "low",
+          "amount": null,
+          "amount_in_words": false,
+          "currency": {
+            "value": "ILS",
+            "evidence": null,
+            "source": "default"
+          },
+          "payer": {
+            "value": {
+              "kind": "known",
+              "id": 3
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "participants": {
+            "value": {
+              "only": null,
+              "exclude": []
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "exact_amounts": null,
+          "refers_to": {
+            "value": "מים 312 לחודשיים",
+            "evidence": "מים 312 לחודשיים",
+            "source": "message"
+          },
+          "subcategory": "water",
+          "description": null
+        }
+      },
+      {
+        "status": "needs_clarification",
+        "issues": [
+          "refers_to: only a correction or delete may say which expense it means"
+        ],
+        "cost_usd": "0.00049095",
+        "latency_s": 1.6581760828848928,
+        "input_tokens": 2785,
+        "output_tokens": 122,
+        "extracted": {
+          "message_type": "new",
+          "confidence": "low",
+          "amount": null,
+          "amount_in_words": false,
+          "currency": {
+            "value": "ILS",
+            "evidence": null,
+            "source": "default"
+          },
+          "payer": {
+            "value": {
+              "kind": "known",
+              "id": 3
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "participants": {
+            "value": {
+              "only": null,
+              "exclude": []
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "exact_amounts": null,
+          "refers_to": {
+            "value": "מים 312 לחודשיים",
+            "evidence": "מים 312 לחודשיים",
+            "source": "message"
+          },
+          "subcategory": "water",
+          "description": null
+        }
+      },
+      {
+        "status": "needs_clarification",
+        "issues": [
+          "refers_to: only a correction or delete may say which expense it means"
+        ],
+        "cost_usd": "0.00049095",
+        "latency_s": 1.5600892500951886,
+        "input_tokens": 2785,
+        "output_tokens": 122,
+        "extracted": {
+          "message_type": "new",
+          "confidence": "low",
+          "amount": null,
+          "amount_in_words": false,
+          "currency": {
+            "value": "ILS",
+            "evidence": null,
+            "source": "default"
+          },
+          "payer": {
+            "value": {
+              "kind": "known",
+              "id": 3
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "participants": {
+            "value": {
+              "only": null,
+              "exclude": []
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "exact_amounts": null,
+          "refers_to": {
+            "value": "מים 312 לחודשיים",
+            "evidence": "מים 312 לחודשיים",
+            "source": "message"
+          },
+          "subcategory": "water",
+          "description": null
+        }
+      }
+    ],
+    "case-52": [
+      {
+        "status": "needs_clarification",
+        "issues": [
+          "refers_to: only a correction or delete may say which expense it means"
+        ],
+        "cost_usd": "0.00049365",
+        "latency_s": 1.7098102080635726,
+        "input_tokens": 2783,
+        "output_tokens": 127,
+        "extracted": {
+          "message_type": "new",
+          "confidence": "medium",
+          "amount": {
+            "value": "150",
+            "evidence": "150",
+            "source": "message"
+          },
+          "amount_in_words": false,
+          "currency": {
+            "value": "ILS",
+            "evidence": null,
+            "source": "default"
+          },
+          "payer": {
+            "value": {
+              "kind": "known",
+              "id": 1
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "participants": {
+            "value": {
+              "only": null,
+              "exclude": []
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "exact_amounts": null,
+          "refers_to": {
+            "value": "ועד בית",
+            "evidence": "ועד בית",
+            "source": "message"
+          },
+          "subcategory": "other",
+          "description": "ועד בית"
+        }
+      },
+      {
+        "status": "ok",
+        "issues": [],
+        "cost_usd": "0.00048525",
+        "latency_s": 1.7666428748052567,
+        "input_tokens": 2783,
+        "output_tokens": 113,
+        "extracted": {
+          "message_type": "new",
+          "confidence": "medium",
+          "amount": {
+            "value": "150",
+            "evidence": "150",
+            "source": "message"
+          },
+          "amount_in_words": false,
+          "currency": {
+            "value": "ILS",
+            "evidence": null,
+            "source": "default"
+          },
+          "payer": {
+            "value": {
+              "kind": "known",
+              "id": 1
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "participants": {
+            "value": {
+              "only": null,
+              "exclude": []
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "exact_amounts": null,
+          "refers_to": null,
+          "subcategory": "other",
+          "description": "ועד בית"
+        }
+      },
+      {
+        "status": "needs_clarification",
+        "issues": [
+          "refers_to: only a correction or delete may say which expense it means"
+        ],
+        "cost_usd": "0.00049365",
+        "latency_s": 1.5173499998636544,
+        "input_tokens": 2783,
+        "output_tokens": 127,
+        "extracted": {
+          "message_type": "new",
+          "confidence": "medium",
+          "amount": {
+            "value": "150",
+            "evidence": "150",
+            "source": "message"
+          },
+          "amount_in_words": false,
+          "currency": {
+            "value": "ILS",
+            "evidence": null,
+            "source": "default"
+          },
+          "payer": {
+            "value": {
+              "kind": "known",
+              "id": 1
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "participants": {
+            "value": {
+              "only": null,
+              "exclude": []
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "exact_amounts": null,
+          "refers_to": {
+            "value": "ועד בית",
+            "evidence": "ועד בית",
+            "source": "message"
+          },
+          "subcategory": "other",
+          "description": "ועד בית"
+        }
+      }
+    ],
+    "case-53": [
+      {
+        "status": "ok",
+        "issues": [],
+        "cost_usd": "0.00048465",
+        "latency_s": 1.4594746250659227,
+        "input_tokens": 2787,
+        "output_tokens": 111,
+        "extracted": {
+          "message_type": "new",
+          "confidence": "high",
+          "amount": {
+            "value": "250",
+            "evidence": "250",
+            "source": "message"
+          },
+          "amount_in_words": false,
+          "currency": {
+            "value": "ILS",
+            "evidence": null,
+            "source": "default"
+          },
+          "payer": {
+            "value": {
+              "kind": "known",
+              "id": 4
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "participants": {
+            "value": {
+              "only": null,
+              "exclude": []
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "exact_amounts": null,
+          "refers_to": null,
+          "subcategory": "cleaning",
+          "description": "מנקה הגיעה"
+        }
+      },
+      {
+        "status": "ok",
+        "issues": [],
+        "cost_usd": "0.00048465",
+        "latency_s": 1.4049387918785214,
+        "input_tokens": 2787,
+        "output_tokens": 111,
+        "extracted": {
+          "message_type": "new",
+          "confidence": "high",
+          "amount": {
+            "value": "250",
+            "evidence": "250",
+            "source": "message"
+          },
+          "amount_in_words": false,
+          "currency": {
+            "value": "ILS",
+            "evidence": null,
+            "source": "default"
+          },
+          "payer": {
+            "value": {
+              "kind": "known",
+              "id": 4
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "participants": {
+            "value": {
+              "only": null,
+              "exclude": []
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "exact_amounts": null,
+          "refers_to": null,
+          "subcategory": "cleaning",
+          "description": "מנקה הגיעה"
+        }
+      },
+      {
+        "status": "ok",
+        "issues": [],
+        "cost_usd": "0.00048465",
+        "latency_s": 1.458319499855861,
+        "input_tokens": 2787,
+        "output_tokens": 111,
+        "extracted": {
+          "message_type": "new",
+          "confidence": "high",
+          "amount": {
+            "value": "250",
+            "evidence": "250",
+            "source": "message"
+          },
+          "amount_in_words": false,
+          "currency": {
+            "value": "ILS",
+            "evidence": null,
+            "source": "default"
+          },
+          "payer": {
+            "value": {
+              "kind": "known",
+              "id": 4
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "participants": {
+            "value": {
+              "only": null,
+              "exclude": []
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "exact_amounts": null,
+          "refers_to": null,
+          "subcategory": "cleaning",
+          "description": "מנקה הגיעה"
+        }
+      }
+    ],
+    "case-55": [
+      {
+        "status": "ok",
+        "issues": [],
+        "cost_usd": "0.00048405",
+        "latency_s": 1.7786898750346154,
+        "input_tokens": 2791,
+        "output_tokens": 109,
+        "extracted": {
+          "message_type": "new",
+          "confidence": "high",
+          "amount": {
+            "value": "89",
+            "evidence": "89",
+            "source": "message"
+          },
+          "amount_in_words": false,
+          "currency": {
+            "value": "ILS",
+            "evidence": null,
+            "source": "default"
+          },
+          "payer": {
+            "value": {
+              "kind": "known",
+              "id": 3
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "participants": {
+            "value": {
+              "only": null,
+              "exclude": []
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "exact_amounts": null,
+          "refers_to": null,
+          "subcategory": "other",
+          "description": "החלפנו נורות ומסננים"
+        }
+      },
+      {
+        "status": "ok",
+        "issues": [],
+        "cost_usd": "0.00048405",
+        "latency_s": 1.5069365419913083,
+        "input_tokens": 2791,
+        "output_tokens": 109,
+        "extracted": {
+          "message_type": "new",
+          "confidence": "high",
+          "amount": {
+            "value": "89",
+            "evidence": "89",
+            "source": "message"
+          },
+          "amount_in_words": false,
+          "currency": {
+            "value": "ILS",
+            "evidence": null,
+            "source": "default"
+          },
+          "payer": {
+            "value": {
+              "kind": "known",
+              "id": 3
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "participants": {
+            "value": {
+              "only": null,
+              "exclude": []
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "exact_amounts": null,
+          "refers_to": null,
+          "subcategory": "other",
+          "description": "החלפנו נורות ומסננים"
+        }
+      },
+      {
+        "status": "ok",
+        "issues": [],
+        "cost_usd": "0.00048765",
+        "latency_s": 1.7053626659326255,
+        "input_tokens": 2791,
+        "output_tokens": 115,
+        "extracted": {
+          "message_type": "new",
+          "confidence": "high",
+          "amount": {
+            "value": "89",
+            "evidence": "89",
+            "source": "message"
+          },
+          "amount_in_words": false,
+          "currency": {
+            "value": "ILS",
+            "evidence": null,
+            "source": "default"
+          },
+          "payer": {
+            "value": {
+              "kind": "known",
+              "id": 3
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "participants": {
+            "value": {
+              "only": null,
+              "exclude": []
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "exact_amounts": null,
+          "refers_to": null,
+          "subcategory": "other",
+          "description": "החלפנו נורות ומסננים"
+        }
+      }
+    ],
+    "case-56": [
+      {
+        "status": "ok",
+        "issues": [],
+        "cost_usd": "0.00048465",
+        "latency_s": 1.62752345809713,
+        "input_tokens": 2787,
+        "output_tokens": 111,
+        "extracted": {
+          "message_type": "new",
+          "confidence": "high",
+          "amount": {
+            "value": "45",
+            "evidence": "45",
+            "source": "message"
+          },
+          "amount_in_words": false,
+          "currency": {
+            "value": "ILS",
+            "evidence": "שקל",
+            "source": "message"
+          },
+          "payer": {
+            "value": {
+              "kind": "known",
+              "id": 1
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "participants": {
+            "value": {
+              "only": null,
+              "exclude": []
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "exact_amounts": null,
+          "refers_to": null,
+          "subcategory": "groceries",
+          "description": "חלב וקפה"
+        }
+      },
+      {
+        "status": "ok",
+        "issues": [],
+        "cost_usd": "0.00048465",
+        "latency_s": 1.389203333063051,
+        "input_tokens": 2787,
+        "output_tokens": 111,
+        "extracted": {
+          "message_type": "new",
+          "confidence": "high",
+          "amount": {
+            "value": "45",
+            "evidence": "45",
+            "source": "message"
+          },
+          "amount_in_words": false,
+          "currency": {
+            "value": "ILS",
+            "evidence": "שקל",
+            "source": "message"
+          },
+          "payer": {
+            "value": {
+              "kind": "known",
+              "id": 1
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "participants": {
+            "value": {
+              "only": null,
+              "exclude": []
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "exact_amounts": null,
+          "refers_to": null,
+          "subcategory": "groceries",
+          "description": "חלב וקפה"
+        }
+      },
+      {
+        "status": "ok",
+        "issues": [],
+        "cost_usd": "0.00048465",
+        "latency_s": 1.416818750090897,
+        "input_tokens": 2787,
+        "output_tokens": 111,
+        "extracted": {
+          "message_type": "new",
+          "confidence": "high",
+          "amount": {
+            "value": "45",
+            "evidence": "45",
+            "source": "message"
+          },
+          "amount_in_words": false,
+          "currency": {
+            "value": "ILS",
+            "evidence": "שקל",
+            "source": "message"
+          },
+          "payer": {
+            "value": {
+              "kind": "known",
+              "id": 1
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "participants": {
+            "value": {
+              "only": null,
+              "exclude": []
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "exact_amounts": null,
+          "refers_to": null,
+          "subcategory": "groceries",
+          "description": "חלב וקפה"
+        }
+      }
+    ],
+    "case-57": [
+      {
+        "status": "ok",
+        "issues": [],
+        "cost_usd": "0.00049545",
+        "latency_s": 1.5560558747965842,
+        "input_tokens": 2787,
+        "output_tokens": 129,
+        "extracted": {
+          "message_type": "new",
+          "confidence": "high",
+          "amount": {
+            "value": "180",
+            "evidence": "180",
+            "source": "message"
+          },
+          "amount_in_words": false,
+          "currency": {
+            "value": "ILS",
+            "evidence": null,
+            "source": "default"
+          },
+          "payer": {
+            "value": {
+              "kind": "known",
+              "id": 4
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "participants": {
+            "value": {
+              "only": [
+                {
+                  "kind": "known",
+                  "id": 3
+                }
+              ],
+              "exclude": [
+                {
+                  "kind": "known",
+                  "id": 1
+                },
+                {
+                  "kind": "known",
+                  "id": 2
+                }
+              ]
+            },
+            "evidence": "אני ומשה בלבד",
+            "source": "message"
+          },
+          "exact_amounts": null,
+          "refers_to": null,
+          "subcategory": "gas",
+          "description": "גז"
+        }
+      },
+      {
+        "status": "ok",
+        "issues": [],
+        "cost_usd": "0.00049545",
+        "latency_s": 1.6420442501548678,
+        "input_tokens": 2787,
+        "output_tokens": 129,
+        "extracted": {
+          "message_type": "new",
+          "confidence": "high",
+          "amount": {
+            "value": "180",
+            "evidence": "180",
+            "source": "message"
+          },
+          "amount_in_words": false,
+          "currency": {
+            "value": "ILS",
+            "evidence": null,
+            "source": "default"
+          },
+          "payer": {
+            "value": {
+              "kind": "known",
+              "id": 4
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "participants": {
+            "value": {
+              "only": [
+                {
+                  "kind": "known",
+                  "id": 3
+                }
+              ],
+              "exclude": [
+                {
+                  "kind": "known",
+                  "id": 1
+                },
+                {
+                  "kind": "known",
+                  "id": 2
+                }
+              ]
+            },
+            "evidence": "אני ומשה בלבד",
+            "source": "message"
+          },
+          "exact_amounts": null,
+          "refers_to": null,
+          "subcategory": "gas",
+          "description": "גז"
+        }
+      },
+      {
+        "status": "ok",
+        "issues": [],
+        "cost_usd": "0.00049545",
+        "latency_s": 1.851434624986723,
+        "input_tokens": 2787,
+        "output_tokens": 129,
+        "extracted": {
+          "message_type": "new",
+          "confidence": "high",
+          "amount": {
+            "value": "180",
+            "evidence": "180",
+            "source": "message"
+          },
+          "amount_in_words": false,
+          "currency": {
+            "value": "ILS",
+            "evidence": null,
+            "source": "default"
+          },
+          "payer": {
+            "value": {
+              "kind": "known",
+              "id": 4
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "participants": {
+            "value": {
+              "only": [
+                {
+                  "kind": "known",
+                  "id": 3
+                }
+              ],
+              "exclude": [
+                {
+                  "kind": "known",
+                  "id": 1
+                },
+                {
+                  "kind": "known",
+                  "id": 2
+                }
+              ]
+            },
+            "evidence": "אני ומשה בלבד",
+            "source": "message"
+          },
+          "exact_amounts": null,
+          "refers_to": null,
+          "subcategory": "gas",
+          "description": "גז"
+        }
+      }
+    ],
+    "case-58": [
+      {
+        "status": "ok",
+        "issues": [],
+        "cost_usd": "0.00049455",
+        "latency_s": 1.5414552909787744,
+        "input_tokens": 2797,
+        "output_tokens": 125,
+        "extracted": {
+          "message_type": "new",
+          "confidence": "high",
+          "amount": {
+            "value": "200",
+            "evidence": "200",
+            "source": "message"
+          },
+          "amount_in_words": false,
+          "currency": {
+            "value": "ILS",
+            "evidence": null,
+            "source": "default"
+          },
+          "payer": {
+            "value": {
+              "kind": "known",
+              "id": 2
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "participants": {
+            "value": {
+              "only": null,
+              "exclude": []
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "exact_amounts": [
+            {
+              "member": {
+                "kind": "known",
+                "id": 4
+              },
+              "amount": "120",
+              "evidence": "מיכל 120"
+            }
+          ],
+          "refers_to": null,
+          "subcategory": "delivery",
+          "description": "הסושי"
+        }
+      },
+      {
+        "status": "ok",
+        "issues": [],
+        "cost_usd": "0.00050715",
+        "latency_s": 2.0917999169323593,
+        "input_tokens": 2797,
+        "output_tokens": 146,
+        "extracted": {
+          "message_type": "new",
+          "confidence": "high",
+          "amount": {
+            "value": "200",
+            "evidence": "200",
+            "source": "message"
+          },
+          "amount_in_words": false,
+          "currency": {
+            "value": "ILS",
+            "evidence": null,
+            "source": "default"
+          },
+          "payer": {
+            "value": {
+              "kind": "known",
+              "id": 2
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "participants": {
+            "value": {
+              "only": null,
+              "exclude": []
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "exact_amounts": [
+            {
+              "member": {
+                "kind": "known",
+                "id": 4
+              },
+              "amount": "120",
+              "evidence": "מיכל 120"
+            },
+            {
+              "member": {
+                "kind": "known",
+                "id": 2
+              },
+              "amount": "80",
+              "evidence": "אני 80"
+            }
+          ],
+          "refers_to": null,
+          "subcategory": "delivery",
+          "description": "על הסושי"
+        }
+      },
+      {
+        "status": "ok",
+        "issues": [],
+        "cost_usd": "0.00050715",
+        "latency_s": 1.805235292064026,
+        "input_tokens": 2797,
+        "output_tokens": 146,
+        "extracted": {
+          "message_type": "new",
+          "confidence": "high",
+          "amount": {
+            "value": "200",
+            "evidence": "200",
+            "source": "message"
+          },
+          "amount_in_words": false,
+          "currency": {
+            "value": "ILS",
+            "evidence": null,
+            "source": "default"
+          },
+          "payer": {
+            "value": {
+              "kind": "known",
+              "id": 2
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "participants": {
+            "value": {
+              "only": null,
+              "exclude": []
+            },
+            "evidence": null,
+            "source": "default"
+          },
+          "exact_amounts": [
+            {
+              "member": {
+                "kind": "known",
+                "id": 4
+              },
+              "amount": "120",
+              "evidence": "מיכל 120"
+            },
+            {
+              "member": {
+                "kind": "known",
+                "id": 2
+              },
+              "amount": "80",
+              "evidence": "אני 80"
+            }
+          ],
+          "refers_to": null,
+          "subcategory": "restaurant",
+          "description": "על הסושי"
+        }
+      }
+    ]
+  }
+}

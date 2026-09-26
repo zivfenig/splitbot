@@ -63,3 +63,28 @@
 {"id": "r-96", "split": "dev", "message": "מי השאיר כלים בכיור?", "label": "ignore", "difficulty": "easy", "source": "user", "verified": true}
 {"id": "r-98", "split": "dev", "message": "מחר יום הולדת לדני!", "label": "ignore", "difficulty": "easy", "source": "user", "verified": true}
 {"id": "r-99", "split": "dev", "message": "שכחתי את המפתחות, מישהו בבית?", "label": "ignore", "difficulty": "easy", "source": "user", "verified": true}
+{"id": "r-100", "split": "dev", "message": "מישהו יכול להוריד את הזבל?", "label": "ignore", "difficulty": "easy", "source": "user", "verified": true}
+{"id": "r-101", "split": "dev", "message": "יש מים חמים?", "label": "ignore", "difficulty": "easy", "source": "user", "verified": true}
+{"id": "r-102", "split": "dev", "message": "מי מזמין את החבר'ה בשישי?", "label": "ignore", "difficulty": "easy", "source": "user", "verified": true}
+{"id": "r-103", "split": "dev", "message": "הזמנתי תור לרופא ב-9:30", "label": "ignore", "difficulty": "hard", "source": "user", "verified": true}
+{"id": "r-104", "split": "dev", "message": "ביבי שוב בחדשות 🙄", "label": "ignore", "difficulty": "hard", "source": "user", "verified": true}
+{"id": "r-105", "split": "dev", "message": "המחיר של הקוטג' ברמי לוי השתגע", "label": "ignore", "difficulty": "hard", "source": "user", "verified": true}
+{"id": "r-106", "split": "dev", "message": "מישהו יודע כמה עולה תיקון מקרר?", "label": "ignore", "difficulty": "hard", "source": "user", "verified": true}
+{"id": "r-107", "split": "dev", "message": "צריך לשלם את החשמל עד סוף השבוע", "label": "ignore", "difficulty": "hard", "source": "user", "verified": true}
+{"id": "r-108", "split": "dev", "message": "בוא נעשה על האש בשבת, כל אחד מביא משהו", "label": "ignore", "difficulty": "hard", "source": "user", "verified": true}
+{"id": "r-109", "split": "dev", "message": "אני בסופר, צריכים משהו?", "label": "ignore", "difficulty": "hard", "source": "user", "verified": true}
+{"id": "r-110", "split": "dev", "message": "המשכורת נכנסה סוף סוף 🎉", "label": "ignore", "difficulty": "hard", "source": "user", "verified": true}
+{"id": "r-111", "split": "dev", "message": "הזמנתי חבילה מעלי, תשימו לב לשליח", "label": "ignore", "difficulty": "hard", "source": "user", "verified": true}
+{"id": "r-112", "split": "dev", "message": "אחלה ארוחה אתמול!", "label": "ignore", "difficulty": "easy", "source": "user", "verified": true}
+{"id": "r-113", "split": "dev", "message": "לילה טוב לכולם", "label": "ignore", "difficulty": "easy", "source": "user", "verified": true}
+{"id": "r-114", "split": "dev", "message": "אם מישהו הולך לסופר תקנו גם חלב", "label": "ignore", "difficulty": "hard", "source": "user", "verified": true}
+{"id": "r-115", "split": "dev", "message": "העברתי לבעל הבית את השכירות, 6,200", "label": "expense", "difficulty": "hard", "source": "user", "verified": true}
+{"id": "r-116", "split": "dev", "message": "נו אז שמתי 70 על הקפה של כולם", "label": "expense", "difficulty": "hard", "source": "user", "verified": true}
+{"id": "r-117", "split": "dev", "message": "סופר רמי לוי 356.40", "label": "expense", "difficulty": "easy", "source": "user", "verified": true}
+{"id": "r-118", "split": "dev", "message": "טעיתי, הסושי היה 180 ולא 160", "label": "expense", "difficulty": "hard", "source": "user", "verified": true}
+{"id": "r-119", "split": "dev", "message": "שילמתי את הגז, תרשמו אותו", "label": "expense", "difficulty": "hard", "source": "user", "verified": true}
+{"id": "r-120", "split": "dev", "message": "bought toilet paper, 32", "label": "expense", "difficulty": "easy", "source": "user", "verified": true}
+{"id": "r-121", "split": "dev", "message": "כמה משה חייב לי?", "label": "query", "difficulty": "easy", "source": "user", "verified": true}
+{"id": "r-122", "split": "dev", "message": "יצא לנו יקר החודש, כמה בדיוק?", "label": "query", "difficulty": "hard", "source": "user", "verified": true}
+{"id": "r-123", "split": "dev", "message": "מה סך ההוצאות על סופר השבוע?", "label": "query", "difficulty": "easy", "source": "user", "verified": true}
+{"id": "r-124", "split": "dev", "message": "מי עוד לא החזיר על הפיצה?", "label": "query", "difficulty": "hard", "source": "user", "verified": true}

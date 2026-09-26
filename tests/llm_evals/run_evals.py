@@ -20,13 +20,13 @@ import re
 import sys
 from dataclasses import dataclass
 from datetime import date
-from decimal import Decimal, InvalidOperation
+from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
 from typing import Callable, Literal
 
 from pydantic import ValidationError
 
-from splitbot.config import optional
+from splitbot.config import optional, price_for, prices_fingerprint
 from splitbot.llm.client import LLMClient, OpenAIClient
 from splitbot.llm.extractor import Extraction, extract, load_prompt
 from splitbot.models import (
@@ -38,6 +38,7 @@ from splitbot.models import (
     MessageType,
     Participants,
     Subcategory,
+    category_of,
 )
 from splitbot.money import parse_amount
 from splitbot.validation import check_grounding, check_members, normalize, resolve_participants
@@ -193,6 +194,7 @@ class RunScore:
     signature: tuple  # canonical, hashable: equal for two runs that gave the same result
     cost_usd: Decimal | None  # sum over extraction.llm_calls; None if any call's cost is None
     latency_s: float  # sum over extraction.llm_calls
+    n_calls: int = 1  # len(extraction.llm_calls): the LLM calls behind this run (1, or 2 after a retry)
 
 
 def score_run(case: Case, extraction: Extraction) -> RunScore:
@@ -218,11 +220,16 @@ def score_run(case: Case, extraction: Extraction) -> RunScore:
         None/empty on both sides is equal.
       - "subcategory": when expected.subcategory is set. Actual must be in
         `case.accepted_subcategories` (or equal to expected when that is None).
+      - "category": when expected.subcategory is set (the MAIN category, derived in code with
+        `models.category_of`): the actual subcategory's main category must be one of the main
+        categories of the accepted subcategories (so restaurant vs delivery are both
+        "eating_out"). Field order: right after "subcategory".
       - "refers_to": when expected.refers_to is set. Equal after `validation.normalize`.
       - "confidence": on EVERY row. If `case.expect_low`: actual confidence must be low;
         otherwise it must NOT be low. High vs medium is never scored. Description is never
         scored.
       - "asks": ONLY when `case.expected_is_ask`: `extraction.status == "needs_clarification"`.
+    `n_calls` = `len(extraction.llm_calls)`.
     `grounding_failure` = `bool(extraction.issues)` for rows that are not ask rows and where an
     expense was parsed; None otherwise. `signature` covers status, type, parsed amount (or
     stripped text), in-words flag, currency, payer, participants (resolved when possible),
@@ -247,6 +254,7 @@ def score_run(case: Case, extraction: Extraction) -> RunScore:
         signature=_signature(case, extraction),
         cost_usd=cost,
         latency_s=sum(c.latency_s for c in calls),
+        n_calls=len(calls),
     )
 
 
@@ -334,6 +342,10 @@ def _checks(case: Case, extraction: Extraction) -> list[tuple[str, bool, str, st
         accepted = case.accepted_subcategories or [exp.subcategory]
         add("subcategory", bool(act) and act.subcategory in accepted, "/".join(str(x) for x in accepted),
             act.subcategory.value if act and act.subcategory else "none")
+        accepted_categories = {category_of(x) for x in accepted}
+        actual_category = category_of(act.subcategory) if act and act.subcategory else None
+        add("category", actual_category in accepted_categories, "/".join(sorted(str(c) for c in accepted_categories)),
+            str(actual_category) if actual_category else "none")
     if exp.refers_to is not None:
         ok = bool(act and act.refers_to) and normalize(act.refers_to.value) == normalize(exp.refers_to.value)
         add("refers_to", ok, exp.refers_to.value, act.refers_to.value if act and act.refers_to else "none")
@@ -388,9 +400,15 @@ def build_report(cases: list[Case], runs: dict[str, list[RunScore]]) -> dict:
                "grounding_failure_rate": float | None,  # over runs whose value is not None
                "consistency": float,   # share of CASES whose runs all have equal `signature`
                "cost_usd": str | None,  # total as a decimal string; None if any run's is None
+               "n_calls": int,  # sum of the runs' n_calls
+               "cost_usd_per_call": str | None,  # total cost / n_calls
+               "cost_usd_per_correct": str | None,  # total cost / number of full_correct runs
                "latency_s": {"p50": float, "p95": float}}  # nearest-rank over per-run latency
     Accuracies and rates are pooled over all runs, floats in [0, 1]; a rate is None when its
-    denominator is 0. `failures` is sorted by case id, then run number.
+    denominator is 0. `failures` is sorted by case id, then run number. The two per-cost
+    figures are None when the total cost is unknown (None), when n_calls is 0 (per call) or when
+    no run is fully correct (per correct); otherwise the division rounded to 8 decimal places
+    (ROUND_HALF_UP) and written as a plain decimal string.
     """
     by_id = {c.id: c for c in cases}
     ids = [c.id for c in cases if c.id in runs]
@@ -424,10 +442,22 @@ def _mean(flags: list[bool]) -> float | None:
     return sum(flags) / len(flags) if flags else None
 
 
-def _cost_text(scores: list[RunScore]) -> str | None:
+def _total_cost(scores: list[RunScore]) -> Decimal | None:
     if any(r.cost_usd is None for r in scores):
         return None
-    return format(sum((r.cost_usd for r in scores), Decimal(0)), "f")
+    return sum((r.cost_usd for r in scores), Decimal(0))
+
+
+def _cost_text(scores: list[RunScore]) -> str | None:
+    total = _total_cost(scores)
+    return None if total is None else format(total, "f")
+
+
+def _quotient(total: Decimal | None, count: int) -> str | None:
+    """total / count rounded to 8 decimals (half up), as a plain decimal string."""
+    if total is None or count == 0:
+        return None
+    return format((total / count).quantize(Decimal("0.00000001"), rounding=ROUND_HALF_UP), "f")
 
 
 def _percentile(values: list[float], percent: int) -> float:
@@ -462,6 +492,9 @@ def _section(ids: list[str], by_id: dict[str, Case], runs: dict[str, list[RunSco
         "grounding_failure_rate": _mean(grounding),
         "consistency": _mean([len({r.signature for r in runs[i]}) == 1 for i in ids]),
         "cost_usd": _cost_text(scores),
+        "n_calls": sum(r.n_calls for r in scores),
+        "cost_usd_per_call": _quotient(_total_cost(scores), sum(r.n_calls for r in scores)),
+        "cost_usd_per_correct": _quotient(_total_cost(scores), sum(r.full_correct for r in scores)),
         "latency_s": {"p50": _percentile(latencies, 50), "p95": _percentile(latencies, 95)} if latencies else {"p50": 0.0, "p95": 0.0},
     }
 
@@ -525,18 +558,26 @@ def run_split(
     runs: int = RUNS_PER_CASE,
     datasets_dir: Path = DATASETS_DIR,
     results_dir: Path = RESULTS_DIR,
+    prices_path: Path | None = None,
     today: date,
 ) -> Path:
     """Load the cases, load the prompt (`extractor.load_prompt`), run `check_no_leakage`
     BEFORE any LLM call, then for every case and every run call `extractor.extract(message,
     sender_id=..., members=..., llm=llm, prompt_version=...)`, score it, build the report, and
-    write `<results_dir>/<prompt_version>_<split>_<today ISO>.json` (creating the folder).
+    write `<results_dir>/extraction_<model>_<prompt_version>_<split>_<today ISO>.json` (creating
+    the folder; `<model>` is the first LLMResult's model with "/" replaced by "_").
     Returns that path. LLMError from the client propagates (no partial file).
 
     The JSON has: "prompt_version", "split", "date", "model" and "temperature" (taken from the
-    first LLMResult; every result records them), "runs_per_case", "n_cases", "report" (the
+    first LLMResult; every result records them), "prices" ({"in": str, "out": str}, USD per 1M
+    tokens, from `config.price_for(model, prices_path)`, or null when the model is not listed),
+    "prices_sha" (`config.prices_fingerprint(prices_path)`), "cases" ({case_id: {"message": str,
+    "roster": str, "sender_id": int}}: the case texts, so a result file is readable on its own),
+    "runs_per_case", "n_cases", "report" (the
     build_report dict) and "runs": {case_id: [{"status", "issues", "cost_usd" (str|None),
-    "latency_s", "input_tokens", "output_tokens", "extracted": <expense as JSON dict | None>}]}.
+    "latency_s", "input_tokens", "output_tokens", "cached_tokens" (sum over the run's LLM calls of
+    the values that were reported; None when no call reported it), "extracted": <expense as JSON
+    dict | None>}]}.
     """
     cases = load_cases(split, datasets_dir)
     check_no_leakage(cases, load_prompt(prompt_version))  # before any LLM call
@@ -562,6 +603,7 @@ def run_split(
                     "latency_s": score.latency_s,
                     "input_tokens": sum(c.input_tokens for c in extraction.llm_calls),
                     "output_tokens": sum(c.output_tokens for c in extraction.llm_calls),
+                    "cached_tokens": _sum_reported([c.cached_tokens for c in extraction.llm_calls]),
                     "extracted": extraction.expense.model_dump(mode="json") if extraction.expense else None,
                 }
             )
@@ -571,13 +613,17 @@ def run_split(
         "date": today.isoformat(),
         "model": model,
         "temperature": temperature,
+        "prices": _price_record(model, prices_path),
+        "prices_sha": prices_fingerprint(prices_path),
+        "cases": {c.id: {"message": c.message, "roster": c.roster, "sender_id": c.sender_id} for c in cases},
         "runs_per_case": runs,
         "n_cases": len(cases),
         "report": build_report(cases, scores),
         "runs": raw,
     }
     results_dir.mkdir(parents=True, exist_ok=True)
-    path = results_dir / f"{prompt_version}_{split}_{today.isoformat()}.json"
+    safe_model = (model or "unknown").replace("/", "_")
+    path = results_dir / f"extraction_{safe_model}_{prompt_version}_{split}_{today.isoformat()}.json"
     path.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
     return path
 
@@ -588,14 +634,15 @@ def main(
     llm_factory: Callable[[], LLMClient] | None = None,
     today: Callable[[], date] = date.today,
 ) -> int:
-    """CLI: `--split dev|test` (required), `--prompt` (default "extract_v1"), `--runs`
-    (default 3), `--yes`.
+    """CLI: `--split dev|test` (required), `--prompt` (default "extract_v1"), `--model` (the
+    OpenAI model; default OPENAI_MODEL), `--runs` (default 3), `--yes`.
 
     Without `--yes` it is a DRY RUN: load the cases, run the leakage check, print the number
-    of calls (and the rough cost estimate when the prices OPENAI_PRICE_IN_PER_MTOK /
-    OPENAI_PRICE_OUT_PER_MTOK are configured, else "unknown") and return 0, WITHOUT calling
-    `llm_factory` or any LLM. With `--yes` it builds the client with `llm_factory()` (default:
-    `OpenAIClient.from_env`), runs `run_split`, prints a short summary of the overall metrics
+    of calls (and the rough cost estimate when the model (`--model`, else OPENAI_MODEL) is
+    listed in the price file, else "unknown") and return 0, WITHOUT calling `llm_factory` or
+    any LLM. With `--yes` it builds the client with `llm_factory()` (called with no arguments;
+    `--model` only affects the default factory, `OpenAIClient.from_env(model=...)`), runs
+    `run_split`, prints a short summary of the overall metrics
     and the result file path, and returns 0. DatasetError / LeakageError: print the message
     and return 2. `main` reads the module-level DATASETS_DIR and RESULTS_DIR at CALL time (tests
     monkeypatch them), and passes them to `load_cases` / `run_split`.
@@ -603,6 +650,7 @@ def main(
     parser = argparse.ArgumentParser(prog="python -m tests.llm_evals.run_evals")
     parser.add_argument("--split", required=True, choices=["dev", "test"])
     parser.add_argument("--prompt", default="extract_v1")
+    parser.add_argument("--model", default=None, help="OpenAI model (default: OPENAI_MODEL)")
     parser.add_argument("--runs", type=int, default=RUNS_PER_CASE)
     parser.add_argument("--yes", action="store_true", help="really call the LLM (costs money)")
     args = parser.parse_args(argv)
@@ -612,20 +660,22 @@ def main(
         prompt_text = load_prompt(args.prompt)
         check_no_leakage(cases, prompt_text)
         if not args.yes:
+            model_name = args.model or optional("OPENAI_MODEL")
+            price = price_for(model_name) if model_name else None
             estimate = estimate_run(
                 cases, prompt_text, runs=args.runs,
-                price_in_per_mtok=_price("OPENAI_PRICE_IN_PER_MTOK"),
-                price_out_per_mtok=_price("OPENAI_PRICE_OUT_PER_MTOK"),
+                price_in_per_mtok=price.in_per_mtok if price else None,
+                price_out_per_mtok=price.out_per_mtok if price else None,
             )
             print(f"{args.split}: {len(cases)} cases x {args.runs} runs = {estimate.calls} calls "
-                  f"(up to {estimate.max_calls} if every reply is retried)")
+                  f"(up to {estimate.max_calls} if every reply is retried), model {model_name or '(none set)'}")
             if estimate.cost_usd_low is None:
-                print("estimated cost: unknown (set OPENAI_PRICE_IN_PER_MTOK and OPENAI_PRICE_OUT_PER_MTOK)")
+                print(f"estimated cost: unknown (model {model_name!r} is not listed in config/prices.json)")
             else:
                 print(f"estimated cost (rough): ${estimate.cost_usd_low:.4f} to ${estimate.cost_usd_high:.4f}")
             print("Dry run only. Add --yes to make the real calls.")
             return 0
-        llm = (llm_factory or OpenAIClient.from_env)()
+        llm = llm_factory() if llm_factory else OpenAIClient.from_env(model=args.model)
         path = run_split(args.split, prompt_version=args.prompt, llm=llm, runs=args.runs,
                          datasets_dir=DATASETS_DIR, results_dir=RESULTS_DIR, today=today())
     except (DatasetError, LeakageError) as exc:
@@ -642,12 +692,18 @@ def main(
     return 0
 
 
-def _price(name: str) -> Decimal | None:
-    raw = optional(name)
-    try:
-        return Decimal(raw) if raw else None
-    except InvalidOperation:
+def _sum_reported(values: list[int | None]) -> int | None:
+    """Sum of the values that were reported; None when none was."""
+    reported = [v for v in values if v is not None]
+    return sum(reported) if reported else None
+
+
+def _price_record(model: str | None, prices_path: Path | None) -> dict | None:
+    """The model's prices (USD per 1M tokens) as plain strings, or None when it is not listed."""
+    price = price_for(model, prices_path) if model else None
+    if price is None:
         return None
+    return {"in": format(price.in_per_mtok, "f"), "out": format(price.out_per_mtok, "f")}
 
 
 if __name__ == "__main__":

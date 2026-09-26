@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "unit": "USD per 1M tokens",
+  "note": "Not secrets. Versioned so every eval result can show which prices were used. For Jev, prefer the usage.cost that OpenRouter returns.",
+  "models": {
+    "gpt-4o-mini": {"in": 0.15, "out": 0.60},
+    "gpt-4o": {"in": 2.50, "out": 10.00},
+    "text-embedding-3-small": {"in": 0.02, "out": 0},
+    "typesafe/jev-1.13": {"in": 0.042, "out": 0}
+  }
+}

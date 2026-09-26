@@ -1,11 +1,14 @@
 """Self-tests for the eval harness (tests/llm_evals/run_evals.py). Offline: FakeLLM only."""
 
 import json
+import re
+from dataclasses import replace
 from datetime import date
 from decimal import Decimal
 
 import pytest
 
+from splitbot.config import prices_fingerprint
 from splitbot.llm.client import LLMResult
 from splitbot.llm.extractor import Extraction, load_prompt
 from splitbot.models import ExtractedExpense, Member
@@ -59,8 +62,30 @@ def extraction(expense, *, status="ok", issues=(), latency=0.0, cost=None):
     return Extraction(status, expense, list(issues), "extract_v1", [call])
 
 
-def run_score(fields, *, ptype="new", ground=False, sig="s", cost=Decimal("0.01"), latency=1.0, failures=()):
-    return run_evals.RunScore(fields, list(failures), all(fields.values()), ptype, ground, (sig,), cost, latency)
+def run_score(fields, *, ptype="new", ground=False, sig="s", cost=Decimal("0.01"), latency=1.0, failures=(),
+              n_calls=1):
+    return run_evals.RunScore(fields, list(failures), all(fields.values()), ptype, ground, (sig,), cost, latency,
+                              n_calls)
+
+
+class SlashModelLLM:
+    """A FakeLLM whose results name a model with a "/" in it."""
+
+    def __init__(self, replies):
+        self.inner = FakeLLM(replies)
+
+    def complete(self, system, user):
+        return replace(self.inner.complete(system, user), model="vendor/model-x")
+
+
+class CachedLLM:
+    """A FakeLLM that reports `cached_tokens` per call, in order (None = not reported)."""
+
+    def __init__(self, replies, cached):
+        self.inner, self.cached = FakeLLM(replies), list(cached)
+
+    def complete(self, system, user):
+        return replace(self.inner.complete(system, user), cached_tokens=self.cached.pop(0))
 
 
 def payload(amount="50", **over):
@@ -149,8 +174,8 @@ def test_every_verified_case_matches_the_model_and_validators(tmp_path):
 # --- 2 ----------------------------------------------------------------------
 
 
-def R(name, e, a, field, ok, accepted=None, not_scored=()):
-    return pytest.param(e, a, field, ok, accepted, not_scored, id=name)
+def R(name, e, a, field, ok, accepted=None, not_scored=(), also_fails=(), also_ok=()):
+    return pytest.param(e, a, field, ok, accepted, not_scored, also_fails, also_ok, id=name)
 
 
 AMOUNT = {"amount": ev("412.50", "412.50")}
@@ -191,26 +216,30 @@ SCORING_ROWS = [
     R("exact-amounts-invented", {}, {"exact_amounts": [person(2, "50")]}, "exact_amounts", False),
     R("exact-amounts-missed", {"exact_amounts": [person(2, "30")]}, {"exact_amounts": None}, "exact_amounts", False),
     R("subcategory-any-accepted", {"subcategory": "restaurant"}, {"subcategory": "delivery"}, "subcategory", True,
-      accepted=["restaurant", "delivery"]),
+      accepted=["restaurant", "delivery"], also_ok=("category",)),
     R("subcategory-outside-accepted", {"subcategory": "restaurant"}, {"subcategory": "groceries"}, "subcategory",
-      False, accepted=["restaurant", "delivery"]),
+      False, accepted=["restaurant", "delivery"], also_fails=("category",)),
     R("subcategory-without-list-must-match", {"subcategory": "restaurant"}, {"subcategory": "delivery"},
-      "subcategory", False),
+      "subcategory", False, also_ok=("category",)),
+    R("category-wrong-when-subcategory-is-in-another-main-category", {"subcategory": "groceries"},
+      {"subcategory": "supplies"}, "subcategory", False, accepted=["groceries"], also_fails=("category",)),
+    R("category-right-when-subcategory-is-wrong-inside-the-same-main-category", {"subcategory": "electricity"},
+      {"subcategory": "water"}, "subcategory", False, accepted=["electricity"], also_ok=("category",)),
     R("refers-to-ignores-outer-whitespace", {"message_type": "correction", "refers_to": ev("240", "240")},
-      {"refers_to": ev(" 240 ")}, "refers_to", True, not_scored=("amount", "amount_in_words", "exact_amounts")),
+      {"refers_to": ev(" 240 ")}, "refers_to", True, not_scored=("amount", "amount_in_words", "exact_amounts", "category")),
     R("refers-to-different", {"message_type": "correction", "refers_to": ev("240", "240")},
       {"refers_to": ev("260")}, "refers_to", False),
     R("fields-not-set-in-expected-are-not-scored", {"amount": ev("100", "100")},
       {"currency": ev("USD", "$"), "payer": ev(known(3)), "subcategory": "other"}, None,
-      True, not_scored=("currency", "payer", "participants", "subcategory", "refers_to")),
+      True, not_scored=("currency", "payer", "participants", "subcategory", "category", "refers_to")),
     R("chat-row-scores-only-type-and-confidence", {"message_type": "chat"}, {}, None, True,
-      not_scored=("amount", "amount_in_words", "exact_amounts", "currency", "payer", "participants")),
+      not_scored=("amount", "amount_in_words", "exact_amounts", "currency", "payer", "participants", "category")),
     R("nothing-parsed-fails-every-field", {"amount": ev("100", "100"), "currency": ev("USD", "$")}, None, None, False),
 ]
 
 
-@pytest.mark.parametrize("e, a, field, ok, accepted, not_scored", SCORING_ROWS)
-def test_scoring_compares_each_field_by_meaning_not_by_text(e, a, field, ok, accepted, not_scored):
+@pytest.mark.parametrize("e, a, field, ok, accepted, not_scored, also_fails, also_ok", SCORING_ROWS)
+def test_scoring_compares_each_field_by_meaning_not_by_text(e, a, field, ok, accepted, not_scored, also_fails, also_ok):
     case = make_case(exp(**e), accepted=accepted)
     if a is None:  # the reply could not be parsed at all
         score = run_evals.score_run(case, extraction(None, status="needs_clarification", issues=["not valid JSON"]))
@@ -220,10 +249,13 @@ def test_scoring_compares_each_field_by_meaning_not_by_text(e, a, field, ok, acc
     status = "needs_clarification" if case.expected_is_ask else "ok"
     score = run_evals.score_run(case, extraction(exp(**{**e, **a}), status=status))
     failed = [f.field for f in score.failures]
-    assert failed == ([] if ok else [field])
-    assert score.full_correct is ok
+    assert failed == ([] if ok else [field]) + list(also_fails)  # "category" always follows "subcategory"
+    assert score.full_correct is (ok and not also_fails)
     if field is not None:
         assert score.fields[field] is ok
+    assert all(score.fields[f] is True for f in also_ok)
+    if "category" in score.fields:
+        assert list(score.fields).index("category") == list(score.fields).index("subcategory") + 1
     assert not set(not_scored) & set(score.fields)
     if field in ("amount", "currency") and not ok:  # the failure text is readable
         (failure,) = score.failures
@@ -321,7 +353,8 @@ AMOUNT_FAILURE = run_evals.Failure("amount", "100", "200")
 
 
 def report_inputs(h2_run3_cost=Decimal("0.01")):
-    """4 cases x 3 runs. Latencies are 1..12 in order, every run costs 0.01."""
+    """4 cases x 3 runs. Latencies are 1..12 in order, every run costs 0.01. Two runs used 2 LLM calls
+    (h2 run 2, e1 run 1), the other ten used 1: 14 calls in all."""
     expected = exp(amount=ev("100", "100"))
     messages = {"h1": "שילמתי 100", "h2": "שילמתי 100", "e1": "paid 100", "m1": "שילמתי 100 for pizza"}
     cases = [make_case(expected, id=k, message=v) for k, v in messages.items()]
@@ -330,9 +363,10 @@ def report_inputs(h2_run3_cost=Decimal("0.01")):
         "h1": [rs(TYPE_AMOUNT, sig="a", latency=1.0), rs(TYPE_AMOUNT, sig="a", latency=2.0),
                rs(TYPE_AMOUNT, sig="a", latency=3.0)],
         "h2": [rs(WITH_CURRENCY, sig="x", latency=4.0),
-               rs(CURRENCY_WRONG, sig="y", latency=5.0, failures=[CURRENCY_FAILURE]),
+               rs(CURRENCY_WRONG, sig="y", latency=5.0, failures=[CURRENCY_FAILURE], n_calls=2),
                rs(CURRENCY_WRONG, sig="y", latency=6.0, failures=[CURRENCY_FAILURE], cost=h2_run3_cost)],
-        "e1": [rs(AMOUNT_WRONG, sig="z", latency=7.0 + i, failures=[AMOUNT_FAILURE]) for i in range(3)],
+        "e1": [rs(AMOUNT_WRONG, sig="z", latency=7.0 + i, failures=[AMOUNT_FAILURE], n_calls=2 if i == 0 else 1)
+               for i in range(3)],
         "m1": [rs(TYPE_AMOUNT, sig="m", latency=10.0 + i) for i in range(3)],
     }
     return cases, runs
@@ -346,7 +380,7 @@ def test_report_covers_overall_language_case_consistency_cost_and_latency():
     assert set(report["by_language"]) == {"he", "en", "mixed"}
     overall = report["overall"]
     assert set(overall) == {"n_cases", "n_runs", "type", "extraction", "grounding_failure_rate", "consistency",
-                            "cost_usd", "latency_s"}
+                            "cost_usd", "n_calls", "cost_usd_per_call", "cost_usd_per_correct", "latency_s"}
     assert set(overall["type"]) == {"accuracy", "false_expense_rate", "missed_expense_rate"}
     assert set(overall["extraction"]) == {"full_case_accuracy", "per_field_accuracy"}
 
@@ -368,6 +402,22 @@ def test_report_covers_overall_language_case_consistency_cost_and_latency():
         assert section["latency_s"] == pytest.approx({"p50": p50, "p95": p95}), name
         assert section["grounding_failure_rate"] == 0.0, name
         assert section["type"]["false_expense_rate"] is None and section["type"]["missed_expense_rate"] == 0.0
+
+    # (n_calls, cost per call, cost per fully correct run); per call = total / n_calls, rounded to 8 places
+    per_cost = {
+        "overall": (14, "0.00857143", "0.01714286"),  # 0.12 / 14, 0.12 / 7 correct runs
+        "he": (7, "0.00857143", "0.01500000"),  # 0.06 / 7, 0.06 / 4
+        "en": (4, "0.00750000", None),  # 0.03 / 4; no run is fully correct
+        "mixed": (3, "0.01000000", "0.01000000"),  # 0.03 / 3, 0.03 / 3
+    }
+    for name, (n_calls, per_call, per_correct) in per_cost.items():
+        section = sections[name]
+        assert section["n_calls"] == n_calls, name
+        for key, value in (("cost_usd_per_call", per_call), ("cost_usd_per_correct", per_correct)):
+            if value is None:
+                assert section[key] is None, (name, key)
+            else:
+                assert isinstance(section[key], str) and Decimal(section[key]) == Decimal(value), (name, key)
 
     per_case = report["per_case"]
     assert set(per_case) == {"h1", "h2", "e1", "m1"}
@@ -393,10 +443,23 @@ def test_report_covers_overall_language_case_consistency_cost_and_latency():
     cases, runs = report_inputs(h2_run3_cost=None)
     unknown = run_evals.build_report(cases, runs)
     assert unknown["overall"]["cost_usd"] is None
+    for key in ("cost_usd_per_call", "cost_usd_per_correct"):
+        assert unknown["overall"][key] is None and unknown["by_language"]["he"][key] is None
+    assert unknown["overall"]["n_calls"] == 14  # the call count does not depend on the cost
+    assert Decimal(unknown["by_language"]["mixed"]["cost_usd_per_call"]) == Decimal("0.01")
     assert unknown["by_language"]["he"]["cost_usd"] is None
     assert unknown["per_case"]["h2"]["cost_usd"] is None
     assert Decimal(unknown["by_language"]["en"]["cost_usd"]) == Decimal("0.03")
     assert Decimal(unknown["per_case"]["h1"]["cost_usd"]) == Decimal("0.03")
+
+    # rounding is half-up and the string is plain (never "3E-8"); no calls -> no per-call figure
+    case = make_case(exp(amount=ev("100", "100")), id="tiny")
+    half = run_evals.build_report([case], {"tiny": [run_score(TYPE_AMOUNT, cost=Decimal("0.000000025"))]})["overall"]
+    for key in ("cost_usd_per_call", "cost_usd_per_correct"):
+        assert "e" not in half[key].lower() and Decimal(half[key]) == Decimal("0.00000003")
+    no_calls = run_evals.build_report([case], {"tiny": [run_score(TYPE_AMOUNT, cost=Decimal(0), n_calls=0)]})["overall"]
+    assert no_calls["n_calls"] == 0 and no_calls["cost_usd_per_call"] is None
+    assert Decimal(no_calls["cost_usd_per_correct"]) == 0
 
 
 # --- 6 ----------------------------------------------------------------------
@@ -423,20 +486,58 @@ def test_leakage_check_result_file_and_dry_run(tmp_path, monkeypatch, capsys):
     fake = FakeLLM([reply] * 6)
     path = run_evals.run_split("dev", prompt_version="extract_v1", llm=fake, runs=3, datasets_dir=folder,
                                results_dir=results, today=TODAY)
-    assert path == results / "extract_v1_dev_2026-09-26.json" and len(fake.calls) == 6
+    assert path == results / "extraction_fake_extract_v1_dev_2026-09-26.json" and len(fake.calls) == 6
     data = json.loads(path.read_text(encoding="utf-8"))
     assert (data["prompt_version"], data["split"], data["date"]) == ("extract_v1", "dev", "2026-09-26")
     assert (data["model"], data["temperature"], data["runs_per_case"], data["n_cases"]) == ("fake", 0.0, 3, 2)
+    assert data["prices"] is None  # "fake" is not in the default price file: the cost is unknown, not guessed
+    assert re.fullmatch(r"[0-9a-f]{12}", data["prices_sha"]) and data["prices_sha"] == prices_fingerprint()
     assert set(data["report"]) == {"overall", "by_language", "per_case", "failures"}
     assert set(data["runs"]) == {"d1", "d2"}
     for items in data["runs"].values():
         assert len(items) == 3
         for item in items:
             assert set(item) == {"status", "issues", "cost_usd", "latency_s", "input_tokens", "output_tokens",
-                                 "extracted"}
+                                 "cached_tokens", "extracted"}
             assert (item["status"], item["issues"], item["cost_usd"]) == ("ok", [], None)
             assert (item["latency_s"], item["input_tokens"], item["output_tokens"]) == (0.0, 10, 5)
             assert item["extracted"]["amount"]["value"] == "50"
+            assert item["cached_tokens"] is None  # FakeLLM does not report it
+    assert data["cases"] == {  # what each case was asked, from the tiny dataset written above
+        "d1": {"message": M1, "roster": "A", "sender_id": 1},
+        "d2": {"message": M2, "roster": "A", "sender_id": 1},
+    }
+
+    # cached_tokens = sum over the run's calls of the reported values (one invalid reply forces a retry)
+    one = write_dataset(tmp_path / "one", [row("d1", M1)])
+    for name, cached, wanted in (("both-report", [100, 28], 128), ("one-reports", [100, None], 100),
+                                 ("none-report", [None, None], None)):
+        llm = CachedLLM(["not json", reply], cached)
+        cached_path = run_evals.run_split("dev", prompt_version="extract_v1", llm=llm, runs=1, datasets_dir=one,
+                                          results_dir=tmp_path / f"cached_{name}", today=TODAY)
+        (record,) = json.loads(cached_path.read_text(encoding="utf-8"))["runs"]["d1"]
+        assert len(llm.inner.calls) == 2 and record["status"] == "ok", name  # invalid reply, then the retry
+        assert record["cached_tokens"] == wanted, name
+        assert record["input_tokens"] == 20  # two calls of 10: the other token counts are summed too
+
+    # a price file that lists the model: its prices and its fingerprint are recorded
+    price_file = tmp_path / "prices.json"
+    price_file.write_text(
+        '{"version": 1, "unit": "USD per 1M tokens", "models": {"fake": {"in": 0.15, "out": 0.60}}}', encoding="utf-8"
+    )
+    priced_path = run_evals.run_split("dev", prompt_version="extract_v1", llm=FakeLLM([reply] * 6), runs=3,
+                                      datasets_dir=folder, results_dir=results, prices_path=price_file, today=TODAY)
+    priced = json.loads(priced_path.read_text(encoding="utf-8"))
+    assert set(priced["prices"]) == {"in", "out"}
+    assert all(isinstance(v, str) for v in priced["prices"].values())
+    assert (Decimal(priced["prices"]["in"]), Decimal(priced["prices"]["out"])) == (Decimal("0.15"), Decimal("0.60"))
+    assert re.fullmatch(r"[0-9a-f]{12}", priced["prices_sha"]) and priced["prices_sha"] == prices_fingerprint(price_file)
+
+    # "/" in a model name becomes "_" in the file name; the JSON keeps the real name
+    slash_path = run_evals.run_split("dev", prompt_version="extract_v1", llm=SlashModelLLM([reply] * 2), runs=1,
+                                     datasets_dir=folder, results_dir=results, today=TODAY)
+    assert slash_path == results / "extraction_vendor_model-x_extract_v1_dev_2026-09-26.json"
+    assert json.loads(slash_path.read_text(encoding="utf-8"))["model"] == "vendor/model-x"
 
     leaking = write_dataset(tmp_path / "leak", [row("d1", LEAKING_MESSAGE, expected=payload("212"))])
     silent = FakeLLM([])
@@ -458,12 +559,21 @@ def test_leakage_check_result_file_and_dry_run(tmp_path, monkeypatch, capsys):
     # (d) main: a dry run never builds the client
     monkeypatch.delenv("OPENAI_PRICE_IN_PER_MTOK", raising=False)
     monkeypatch.delenv("OPENAI_PRICE_OUT_PER_MTOK", raising=False)
+    monkeypatch.delenv("OPENAI_MODEL", raising=False)
 
     def no_llm():
         raise AssertionError("the LLM client must not be built")
 
     assert run_evals.main(["--split", "dev"], llm_factory=no_llm) == 0
     assert str(len(run_evals.load_cases("dev")) * 3) in capsys.readouterr().out
+
+    # --model picks the prices: listed in the REAL price file -> a dollar amount, else "unknown"
+    assert run_evals.main(["--split", "dev", "--model", "gpt-4o-mini"], llm_factory=no_llm) == 0
+    listed = capsys.readouterr().out
+    assert re.search(r"\$\d", listed) and "unknown" not in listed.lower()
+    assert run_evals.main(["--split", "dev", "--model", "no-such-model"], llm_factory=no_llm) == 0
+    unlisted = capsys.readouterr().out
+    assert "unknown" in unlisted.lower() and not re.search(r"\$\d", unlisted)
 
     monkeypatch.setattr(run_evals, "DATASETS_DIR", folder)
     monkeypatch.setattr(run_evals, "RESULTS_DIR", results)
@@ -473,11 +583,11 @@ def test_leakage_check_result_file_and_dry_run(tmp_path, monkeypatch, capsys):
         built.append(1)
         return FakeLLM([reply, reply])
 
-    argv = ["--split", "dev", "--runs", "1", "--yes"]
+    argv = ["--split", "dev", "--runs", "1", "--yes", "--model", "gpt-4o-mini"]
     assert run_evals.main(argv, llm_factory=factory, today=lambda: TODAY) == 0
     assert built == [1]
-    assert "extract_v1_dev_2026-09-26.json" in capsys.readouterr().out
-    assert (results / "extract_v1_dev_2026-09-26.json").exists()
+    assert "extraction_fake_extract_v1_dev_2026-09-26.json" in capsys.readouterr().out
+    assert (results / "extraction_fake_extract_v1_dev_2026-09-26.json").exists()
 
     # bad data: a message and exit code 2 (dry run, so no client either)
     for name, rows in {"leak": [row("d1", LEAKING_MESSAGE, expected=payload("212"))],
