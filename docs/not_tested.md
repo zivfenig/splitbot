@@ -16,6 +16,13 @@ load testing over HTTP.
 - **gpt-4o-mini does not always flag an ambiguous name** (dev case-37: "סופר 300 בלי דני" with two
   Danis, 0/3 runs flagged). The author's confirmation shows the resolved name, so a human
   catches it; the check is not automatic.
+- **Known issue: prompt v2 with gpt-4o-mini does not make the pipeline ask about an ambiguous
+  amount** ("1.200", case-36: asked in 3/3 runs with v1, 0/3 with v2). No further prompt round;
+  the unconditional confirmation shows the exact number before anything is stored, so a human
+  catches it.
+- **A settlement is read as a new expense** ("העברתי לך 50 בביט", case-25, by every model
+  tried). Settlements between members are out of scope; the confirmation shows the number and
+  the user rejects it.
 - **Subcategory, description and message_type are inferred**, so they carry no evidence.
 - **Participants have ONE evidence string for the whole field, not one per member**, so a
   person wrongly added to `only` or `exclude` can still pass grounding (the evidence exists,

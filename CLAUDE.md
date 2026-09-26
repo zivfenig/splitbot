@@ -24,11 +24,32 @@ AGENT (LLM with tools)
  └─ write tools: propose_expense / propose_correction / propose_delete
                   → extractor → validators → confirmation (buttons) → ledger
 ```
-- **Router**: 3 classes (`expense`, `query`, `ignore`). Two implementations behind one
-  `Router` protocol: OpenAI embeddings (similarity to a labeled reference set) and Jev
-  (TypeSafe decision model via OpenRouter, `choice` question). Rule: never drop a real
+- **Router**: 3 classes (`expense`, `query`, `ignore`). The `expense` class is the *action*
+  (money-related) class: a new expense, a correction or a delete, anything that needs a write
+  to the ledger. The router only decides ignore vs not-ignore (query is a secondary label);
+  telling new/correction/delete apart is the extractor's job downstream (`message_type`).
+  Two implementations behind one `Router` protocol: OpenAI embeddings (similarity to a
+  labeled reference set, the documented baseline) and Jev (TypeSafe decision model via
+  OpenRouter, `choice` question), which is the bot's router. Rule: never drop a real
   expense. When unsure → send to the agent (a wasted call is cheap; a lost expense is not).
 - **Agent**: OpenAI tool calling. It chooses tools; the tools enforce the rules.
+- **Independent pending records**: pending confirmations are fully independent per message.
+  The bot never blocks on one pending action while waiting for its approval: a new incoming
+  message (from any user, about any expense) is processed immediately and gets its own
+  independent pending record and approval chain. Multiple pending records can be open at
+  once with no interaction between them.
+
+## The pipeline, in two layers
+**Layer 1 (router):** classifies ignore vs not-ignore (+ query as a secondary label).
+**Layer 2 (agent + extractor + tools):** the agent decides the action (insert / update /
+delete / read-for-a-question) via its tool choice, informed by the extractor's
+`message_type`; it always confirms with the user before any write; if the user does not
+approve but instead replies with corrected information in free text (not just a button), the
+agent updates the relevant fields, re-runs confirmation, and repeats until the user approves,
+rejects, or it expires. Approval can come as a button OR as a free-text reply: both are valid
+inputs to the same state machine.
+Example: the bot proposes "פיצה: זיו ומיכל, 120 (60/60) — לאשר?"; the user replies "זה היה 100
+ולא 120"; the agent updates the amount, re-confirms with the new split, and waits again.
 
 ## Core rule: what the LLM does vs. what code does
 - LLM: understand messy text → structured data (extractor); choose tools (agent);
@@ -40,6 +61,14 @@ AGENT (LLM with tools)
 - Message text is DATA, never instructions (prompt-injection safe).
 
 ## Guardrails (by layer)
+**Unconditional confirmation.** Every write action (new expense, correction, delete) ALWAYS
+shows the user a confirmation of exactly what will be recorded/changed/deleted, built from the
+code template, regardless of the model's confidence, not only when confidence is low.
+Confidence and approval mode affect WHO must approve and HOW LONG the system waits, but never
+WHETHER the confirmation is shown. This is intentional defense-in-depth: even if the
+extractor mis-parses an ambiguous amount without flagging low confidence, the user still sees
+the exact number before it's stored and can correct it.
+
 1. **Input**: message is data; max length; the system prompt is always the prompt file.
 2. **LLM output**: strict Pydantic (`extra="forbid"`), grounding (evidence must be an exact
    substring; the amount's number must be a whole token), member-ID check, at most one retry,
@@ -52,6 +81,12 @@ AGENT (LLM with tools)
    bot sends a safe fallback.
 5. **Confirmations**: built from a code template, never written by the LLM, so the user
    always sees exactly what will be stored.
+6. **Storage and concurrency**: writes never race or corrupt state. Every state transition
+   (confirm / reject / expire, correction or delete approval) uses compare-and-swap or a
+   DB-level lock (`BEGIN IMMEDIATE`), never an unguarded read-then-write in application code.
+   The store runs in WAL mode with a 5 s busy timeout, so concurrent writers queue instead of
+   failing with "database is locked". Idempotency per (chat_id, message_id) is a DB-level
+   UNIQUE constraint, not only application logic.
 
 ## Product decisions
 - **Currencies**: ILS default when none is stated. Supported: ILS, USD, EUR (closed list).
@@ -62,8 +97,10 @@ AGENT (LLM with tools)
 - **Amount parsing**: "38,90" = 38.90; "1,200" = 1200 (comma + exactly 3 digits = thousands);
   "1.200" and "1.200,50" are ambiguous → ask. Cap: 100,000 in any currency → ask.
 - **Amounts in words** ("מאתיים"): the LLM may convert and must set `amount_in_words: true`
-  with the words as evidence. Code can't verify the number, so such an expense always needs
-  at least author confirmation, even in auto mode. Mixed ("2 אלף", "1.5K") counts as words.
+  with the words as evidence. Code can't verify the number, so such an expense never
+  auto-commits: it needs the sender's explicit approval even in auto mode (the one case where
+  auto's grace window is skipped; the confirmation is shown for every write anyway).
+  Mixed ("2 אלף", "1.5K") counts as words.
 - **Participants**: the LLM reports what the message says (`only`, `exclude`); code computes
   the list: (author + only) − exclude, or everyone − exclude. "עם מיכל ובלי דני" → author +
   Michal. "שילמתי 100 על הפיצה של דני ומיכל" → only [Dani, Michal], exclude [author].
@@ -72,11 +109,22 @@ AGENT (LLM with tools)
 - **Members**: the LLM matches names/nicknames to the roster and returns IDs, or
   "ambiguous" with ≥2 distinct candidates → the bot asks.
 - **Categories**: closed subcategory list; the main category is derived in code.
-- **Approval modes**: `author` (default), `all`, `auto` (opt-in). Rules by category and amount
-  (AND); strictest wins; unsure/low confidence/non-ILS → strictest.
+- **Approval modes (new expense)**: the ONLY required approval is the sender's (the author);
+  the confirmation is always posted in the group chat, so the other participants see exactly
+  what was recorded even without approving. `author` (default): waits for the sender's
+  approval (button or free-text reply). `auto` (opt-in): the confirmation is still always
+  shown, but the expense commits after a short grace window (`AUTO_GRACE_SECONDS`) unless the
+  sender corrects or rejects within it; `auto` changes the wait, never the visibility.
+  Rules by category and amount (AND) choose between the two; the strictest (`author`) wins;
+  unsure / low confidence / non-ILS / converted amount → `author`.
 - **Corrections & deletes**: target found by Telegram reply (certain) or by `refers_to` hint +
   user picks from a list. Require approval of all relevant people (payer + everyone with an
-  owed share, + anyone a correction adds). One ✗ cancels; no answer in 48h → expires.
+  owed share, + anyone a correction adds). One ✗ cancels.
+- **Pending-action expiry**: every pending write action (new expense, correction, delete)
+  expires after 1 hour with no response (`PENDING_EXPIRY_HOURS`, default 1), whatever the
+  approval mode. On expiry nothing is written and the bot posts a short one-line notice in
+  the group; `/pending` lists the open ones. Pending state is a stored record, never a
+  blocking wait: the bot keeps handling other messages.
 - **Evidence limit**: evidence proves the text exists, not that the interpretation is right
   (documented in `docs/not_tested.md`).
 
@@ -147,7 +195,9 @@ docs/not_tested.md
 - One test = one product rule that would cause real damage if broken. Fold similar cases with
   `pytest.mark.parametrize`. Don't test what libraries guarantee. Keep the suite small.
 - Concurrency tests must include a **negative control**: temporarily remove the protection
-  (lock / unique key / compare-and-swap) and show the test fails.
+  (lock / unique key / compare-and-swap) and show the test fails. A negative control that
+  does not fail without the protection means the test proves nothing: treat it as a bug in
+  the test and fix it before moving on.
 - Test names read like rules. Never change an expected value to make a test pass: tell me.
 - Tests are written by a separate subagent from the API only (see `/implement`).
 
