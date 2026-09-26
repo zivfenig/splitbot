@@ -43,3 +43,8 @@ now read as a new expense, 3/3 -> 0/3; false expense rate 0% -> 11.1%) and case-
 run read the currency as USD). Not fixed: case-04 and case-51 (recognised as new, but the amount
 is still not extracted), case-48 (new with low confidence now, but subcategory still "other"),
 case-37, case-58.
+
+## jev_router_v1 — 2026-09-26
+The `choice` question sent to Jev (via OpenRouter) by the router: the instructions and the
+three criteria (`expense` = the "action" class: a new expense, a correction or a delete; `query`;
+`ignore`). Not evaluated yet.

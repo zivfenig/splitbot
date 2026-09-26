@@ -1,0 +1,8 @@
+{
+  "instructions": "What is this group-chat message, in a shared-expenses chat?",
+  "criteria": {
+    "expense": "Reports an expense someone paid, or corrects or deletes one.",
+    "query": "Asks a question about the group's expenses or balances.",
+    "ignore": "Anything else: chatter, plans, reminders, jokes."
+  }
+}
