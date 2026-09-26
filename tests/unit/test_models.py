@@ -1,4 +1,5 @@
 import copy
+from datetime import date
 
 import pytest
 from pydantic import ValidationError
@@ -67,6 +68,9 @@ def with_change(path: tuple, value) -> dict:
         with_change(("payer", "value"), {"kind": "maybe", "id": 1}),
         with_change(("total_in_words",), "one hundred forty"),
         with_change(("exact_amounts",), [{"member": {"kind": "known", "id": 2}, "amount": "50"}]),
+        with_change(("refers_to",), {"value": "240", "evidence": "240", "source": "guess"}),
+        with_change(("amount_in_words",), "yes"),
+        with_change(("amount_in_words",), 1),
     ],
     ids=[
         "currency_gbp",
@@ -79,10 +83,15 @@ def with_change(path: tuple, value) -> dict:
         "unknown_member_ref_kind",
         "extra_key",
         "exact_amount_without_evidence",
+        "refers_to_source_guess",
+        "amount_in_words_string_yes",
+        "amount_in_words_number_one",
     ],
 )
 def test_extraction_rejects_values_outside_the_closed_lists(bad_payload):
     ExtractedExpense.model_validate(valid_payload())  # the base payload itself is fine
+    assert ExtractedExpense.model_validate(with_change(("amount_in_words",), True)).amount_in_words is True
+    assert ExtractedExpense.model_validate(valid_payload()).amount_in_words is False  # default
     with pytest.raises(ValidationError):
         ExtractedExpense.model_validate(bad_payload)
 
@@ -91,7 +100,7 @@ def expense(total: int, shares: list[Share]) -> Expense:
     return Expense(
         chat_id=1,
         message_id=1,
-        group_id=1,
+        spent_on=date(2026, 9, 1),
         author_id=1,
         description="פיצה",
         total=total,

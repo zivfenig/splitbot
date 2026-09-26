@@ -183,6 +183,145 @@ def amount_field(value: str, evidence: str | None, source: str = "message") -> d
         ("שילמתי 240 דולר על פיצה עם מיכל", {}, "currency"),
         ("paid 240 USD", {"participants": None}, "currency"),
         ("שילמתי 240 על אירוע עם מיכל", {}, None),  # "אירוע" (event) is not "אירו" (euro)
+        # refers_to: which expense a correction/delete means
+        (
+            "sorry, it was 62 not 26",
+            {
+                "message_type": "correction",
+                "amount": amount_field("62", "62"),
+                "refers_to": {"value": "26", "evidence": "26", "source": "message"},
+                "participants": None,
+            },
+            None,
+        ),
+        (
+            "delete the groceries from monday",
+            {
+                "message_type": "delete",
+                "amount": None,
+                "currency": None,
+                "payer": None,
+                "participants": None,
+                "refers_to": {
+                    "value": "the groceries from monday",
+                    "evidence": "the groceries from monday",
+                    "source": "message",
+                },
+            },
+            None,
+        ),
+        (
+            "sorry, it was 62 not 26",
+            {
+                "message_type": "correction",
+                "amount": amount_field("62", "62"),
+                "refers_to": {"value": "27", "evidence": "27", "source": "message"},
+                "participants": None,
+            },
+            "refers_to",
+        ),
+        (
+            "sorry, it was 62 not 26",
+            {
+                "message_type": "correction",
+                "amount": amount_field("62", "62"),
+                "refers_to": {"value": "26", "evidence": "26", "source": "default"},
+                "participants": None,
+            },
+            "refers_to",
+        ),
+        (
+            "sorry, it was 62 not 26",
+            {
+                "message_type": "correction",
+                "amount": amount_field("62", "62"),
+                "refers_to": {"value": "26", "evidence": "   ", "source": "message"},
+                "participants": None,
+            },
+            "refers_to",
+        ),
+        (
+            MESSAGE,
+            {"refers_to": {"value": "פיצה", "evidence": "פיצה", "source": "message"}},
+            "refers_to",
+        ),
+        (
+            "sorry, it was 62 not 26",
+            {
+                "message_type": "chat",
+                "amount": None,
+                "currency": None,
+                "payer": None,
+                "participants": None,
+                "refers_to": {"value": "26", "evidence": "26", "source": "message"},
+            },
+            "refers_to",
+        ),
+        (
+            "sorry, it was 62 not 26",
+            {
+                "message_type": "correction",
+                "amount": amount_field("62", "62"),
+                "refers_to": None,
+                "participants": None,
+            },
+            None,
+        ),
+        # amount in words: the LLM converted it, grounding only checks the evidence exists
+        (
+            "שילמתי מאה וחמישים על פיצה",
+            {"amount": amount_field("150", "מאה וחמישים"), "amount_in_words": True, "participants": None},
+            None,
+        ),
+        (
+            "שילמתי 2 אלף על שכירות",
+            {"amount": amount_field("2000", "2 אלף"), "amount_in_words": True, "participants": None},
+            None,
+        ),
+        (
+            "paid 1.5K for rent",
+            {"amount": amount_field("1500", "1.5K"), "amount_in_words": True, "participants": None},
+            None,
+        ),
+        (
+            "שילמתי מאה וחמישים על פיצה",
+            {"amount": amount_field("150", "מאתיים"), "amount_in_words": True, "participants": None},
+            "amount",  # evidence not in the message
+        ),
+        (
+            "שילמתי מאה וחמישים על פיצה",
+            {"amount": amount_field("abc", "מאה וחמישים"), "amount_in_words": True, "participants": None},
+            "amount",  # value is not a readable amount
+        ),
+        (
+            "שילמתי מאה וחמישים על פיצה",
+            {"amount": amount_field("0", "מאה וחמישים"), "amount_in_words": True, "participants": None},
+            "amount",  # value must be positive
+        ),
+        (
+            "שילמתי מאה וחמישים על פיצה",
+            {"amount": amount_field("150", "   "), "amount_in_words": True, "participants": None},
+            "amount",  # blank evidence
+        ),
+        (
+            "שילמתי מאה וחמישים על פיצה",
+            {
+                "amount": amount_field("150", "מאה וחמישים", source="default"),
+                "amount_in_words": True,
+                "participants": None,
+            },
+            "amount",  # an amount cannot be a default
+        ),
+        (
+            "שילמתי מאה וחמישים על פיצה",
+            {"amount": amount_field("150", "מאה וחמישים"), "amount_in_words": False, "participants": None},
+            "amount",  # control: without the flag, digitless evidence is still an issue
+        ),
+        (
+            MESSAGE,
+            {"amount": amount_field("240", "240"), "amount_in_words": True},
+            None,  # control: the flag alone is not an issue
+        ),
     ],
     ids=[
         "fully_grounded",
@@ -210,6 +349,24 @@ def amount_field(value: str, evidence: str | None, source: str = "message") -> d
         "default_ils_but_message_says_dollars_in_hebrew",
         "default_ils_but_message_says_usd",
         "word_containing_euro_letters_is_not_a_currency",
+        "correction_with_grounded_refers_to",
+        "delete_with_grounded_refers_to",
+        "refers_to_evidence_not_in_message",
+        "refers_to_source_default",
+        "refers_to_blank_evidence",
+        "refers_to_on_a_new_expense",
+        "refers_to_on_a_chat_message",
+        "correction_without_refers_to_is_fine",
+        "words_amount_is_accepted",
+        "mixed_digits_and_words_amount_is_accepted",
+        "shorthand_amount_is_accepted",
+        "words_evidence_not_in_message",
+        "words_value_not_a_readable_amount",
+        "words_value_zero",
+        "words_blank_evidence",
+        "words_amount_cannot_be_a_default",
+        "digitless_evidence_without_the_flag_is_an_issue",
+        "flag_with_digit_evidence_is_not_an_issue",
     ],
 )
 def test_ungrounded_fields_need_clarification(message, changes, expected_issue):

@@ -4,6 +4,7 @@ Amounts are integers in minor units (agorot/cents), never float. The one excepti
 `ExtractedExpense.amount`, which is the text the LLM found ("38.90"); money.py parses it.
 """
 
+from datetime import date, datetime, timezone
 from enum import StrEnum
 from typing import Annotated, Generic, Literal, TypeVar
 
@@ -148,10 +149,16 @@ class ExtractedExpense(Strict):
     message_type: MessageType
     confidence: Confidence
     amount: Evidenced[str] | None = None  # text as written, e.g. "38.90"; money.py parses it
+    # True when the amount was written in words or shorthand ("מאתיים", "2 אלף", "1.5K") and the
+    # LLM converted it to digits in `amount.value`; `amount.evidence` is then the words as written.
+    # Code cannot verify that conversion, so a human always confirms it (see policy).
+    amount_in_words: bool = Field(default=False, strict=True)
     currency: Evidenced[Currency] | None = None
     payer: Evidenced[MemberRef] | None = None
     participants: Evidenced[Participants] | None = None
     exact_amounts: list[PersonAmount] | None = Field(default=None, min_length=1)  # else equal split
+    # correction/delete only: the words that identify the target expense ("240", "הפיצה של אתמול")
+    refers_to: Evidenced[str] | None = None
     subcategory: Subcategory | None = None
     description: str | None = None  # free text, kept as written
 
@@ -170,20 +177,24 @@ class Share(BaseModel):
 
 
 class ExpenseState(StrEnum):
-    pending_approval = "pending_approval"
-    approved = "approved"
-    submitting = "submitting"
-    submitted = "submitted"
+    """Shared by expenses and change requests (corrections/deletes)."""
+
+    pending_confirmation = "pending_confirmation"
+    confirmed = "confirmed"
     rejected = "rejected"
     expired = "expired"
-    failed = "failed"
+
+
+def _utc_now() -> datetime:
+    return datetime.now(timezone.utc)
 
 
 class Expense(BaseModel):
+    """One ledger record. The chat is the group: `chat_id` scopes every ledger query."""
+
     id: int | None = None
     chat_id: int
     message_id: int
-    group_id: int
     author_id: int
     description: str
     total: int  # minor units
@@ -191,8 +202,10 @@ class Expense(BaseModel):
     subcategory: Subcategory
     shares: list[Share]
     prompt_version: str
-    state: ExpenseState = ExpenseState.pending_approval
-    splitwise_id: int | None = None
+    spent_on: date
+    created_at: datetime = Field(default_factory=_utc_now)  # timezone-aware, for the 48h expiry
+    state: ExpenseState = ExpenseState.pending_confirmation
+    deleted: bool = False  # soft delete: the row stays, but no balance/search/summary counts it
 
     @model_validator(mode="after")
     def shares_sum_exactly_to_total(self) -> "Expense":
@@ -228,8 +241,42 @@ class ApprovalRule(BaseModel):
     min_amount: int | None = None  # minor units
 
 
+class ChangeKind(StrEnum):
+    correction = "correction"
+    delete = "delete"
+
+
+class ChangeRequest(BaseModel):
+    """A correction or delete of a confirmed expense. It changes the ledger only after ALL the
+    relevant people approved (see policy.relevant_approvers). The requester's own approval is
+    recorded when it is created."""
+
+    id: int | None = None
+    chat_id: int
+    message_id: int  # the message that asked for the change (idempotency key with chat_id)
+    expense_id: int
+    kind: ChangeKind
+    requested_by: int
+    proposed: Expense | None = None  # correction: the full replacement expense; delete: None
+    required_approvers: list[int]
+    approvals: dict[int, bool] = {}  # user id -> True (✓) / False (✗)
+    created_at: datetime = Field(default_factory=_utc_now)
+    state: ExpenseState = ExpenseState.pending_confirmation
+
+    @model_validator(mode="after")
+    def is_consistent(self) -> "ChangeRequest":
+        if (self.kind == ChangeKind.correction) != (self.proposed is not None):
+            raise ValueError("a correction needs `proposed`; a delete has none")
+        if not self.required_approvers or len(set(self.required_approvers)) != len(self.required_approvers):
+            raise ValueError("required_approvers must be a non-empty list of distinct user ids")
+        if self.requested_by not in self.required_approvers:
+            raise ValueError("only a relevant person may request a change")
+        if not set(self.approvals) <= set(self.required_approvers):
+            raise ValueError("approvals can only come from the required approvers")
+        return self
+
+
 class GroupConfig(BaseModel):
-    group_id: int
     chat_id: int
     members: list[Member]
     default_mode: ApprovalMode = ApprovalMode.author

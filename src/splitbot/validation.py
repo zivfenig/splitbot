@@ -6,7 +6,7 @@ Order of use: check member references (real IDs, no ambiguity) -> resolve partic
 import re
 import unicodedata
 
-from splitbot.models import Currency, ExtractedExpense, KnownMember, MemberRef, Participants
+from splitbot.models import Currency, ExtractedExpense, KnownMember, MemberRef, MessageType, Participants
 from splitbot.money import parse_amount
 
 _NUMBER = re.compile(r"[0-9]+(?:[.,][0-9]+)*")
@@ -109,7 +109,21 @@ def _amount_issues(name: str, amount: str, evidence: str, message: str) -> list[
 
 
 def check_grounding(extracted: ExtractedExpense, message: str, *, author_id: int) -> list[str]:
-    """Issues for anything not backed by the message. Empty list = grounded. Any issue -> ask."""
+    """Issues for anything not backed by the message. Empty list = grounded. Any issue -> ask.
+
+    `amount_in_words`: when True, the amount's evidence must be non-blank and found in the message
+    and its source must be "message"; the "exactly one numeric token" check is skipped (code
+    cannot verify a conversion, so a human confirms it) and mixed digits-and-words such as
+    "2 אלף" or "1.5K" count as words. `amount.value` must still be a positive amount that
+    `money.parse_amount` reads (so the confirmation can show it), else an issue naming
+    `amount`. This is NOT a clarification by itself: no issue is raised just because the flag
+    is True. When the flag is False, digitless evidence is an issue, as before.
+
+    `refers_to` (which expense a correction/delete means): its source must be "message" and its
+    evidence must be non-blank and found in the message; it must be null for message types
+    "new" and "chat" (present there = an issue). A null `refers_to` on a correction or delete
+    is fine (a Telegram reply can identify the target). Every issue about it names `refers_to`.
+    """
     text = normalize(message)
     issues: list[str] = []
 
@@ -119,7 +133,15 @@ def check_grounding(extracted: ExtractedExpense, message: str, *, author_id: int
             issues.append("amount: cannot be a default, it must come from the message")
         issues += _evidence_issues("amount", a.evidence, a.source, text)
         if a.evidence and a.source == "message":
-            issues += _amount_issues("amount", a.value, a.evidence, text)
+            if extracted.amount_in_words:
+                # Code cannot check a conversion ("מאה" -> "100"): a human confirms it (policy).
+                # It only has to be a readable positive amount, so the confirmation can show it.
+                try:
+                    parse_amount(a.value)
+                except ValueError:
+                    issues.append("amount: the converted amount is not a readable positive number")
+            else:
+                issues += _amount_issues("amount", a.value, a.evidence, text)
 
     if extracted.currency:
         c = extracted.currency
@@ -140,6 +162,14 @@ def check_grounding(extracted: ExtractedExpense, message: str, *, author_id: int
         if pt.source == "default" and (pt.value.only is not None or pt.value.exclude):
             issues.append("participants: a default must mean everyone")
         issues += _evidence_issues("participants", pt.evidence, pt.source, text)
+
+    if extracted.refers_to:
+        r = extracted.refers_to
+        if extracted.message_type in (MessageType.new, MessageType.chat):
+            issues.append("refers_to: only a correction or delete may say which expense it means")
+        if r.source != "message":
+            issues.append("refers_to: must come from the message")
+        issues += _evidence_issues("refers_to", r.evidence, r.source, text)
 
     for i, person in enumerate(extracted.exact_amounts or []):
         name = f"exact_amounts[{i}]"

@@ -1,0 +1,30 @@
+{"id": "ref-01", "split": "reference", "message": "קניתי ירקות ב-45", "label": "expense", "difficulty": null, "source": "user", "verified": true}
+{"id": "ref-02", "split": "reference", "message": "שילמתי 300 על הגז", "label": "expense", "difficulty": null, "source": "user", "verified": true}
+{"id": "ref-03", "split": "reference", "message": "חשבון מים 210", "label": "expense", "difficulty": null, "source": "user", "verified": true}
+{"id": "ref-04", "split": "reference", "message": "הזמנתי פיצה 90 בלי משה", "label": "expense", "difficulty": null, "source": "user", "verified": true}
+{"id": "ref-05", "split": "reference", "message": "paid 60 for detergent", "label": "expense", "difficulty": null, "source": "user", "verified": true}
+{"id": "ref-06", "split": "reference", "message": "אופס זה היה 70 לא 60", "label": "expense", "difficulty": null, "source": "user", "verified": true}
+{"id": "ref-07", "split": "reference", "message": "תמחקו את הסופר של אתמול", "label": "expense", "difficulty": null, "source": "user", "verified": true}
+{"id": "ref-08", "split": "reference", "message": "סופר 250", "label": "expense", "difficulty": null, "source": "user", "verified": true}
+{"id": "ref-09", "split": "reference", "message": "ארנונה 900", "label": "expense", "difficulty": null, "source": "user", "verified": true}
+{"id": "ref-10", "split": "reference", "message": "שווארמה 88 רק אני ומיכל", "label": "expense", "difficulty": null, "source": "user", "verified": true}
+{"id": "ref-11", "split": "reference", "message": "מי חייב כסף למי?", "label": "query", "difficulty": null, "source": "user", "verified": true}
+{"id": "ref-12", "split": "reference", "message": "כמה הוצאנו על סופר החודש?", "label": "query", "difficulty": null, "source": "user", "verified": true}
+{"id": "ref-13", "split": "reference", "message": "כמה אני צריך להעביר למשה?", "label": "query", "difficulty": null, "source": "user", "verified": true}
+{"id": "ref-14", "split": "reference", "message": "מה יצא החשבון חשמל?", "label": "query", "difficulty": null, "source": "user", "verified": true}
+{"id": "ref-15", "split": "reference", "message": "how much did we spend this month?", "label": "query", "difficulty": null, "source": "user", "verified": true}
+{"id": "ref-16", "split": "reference", "message": "מי שילם על האינטרנט?", "label": "query", "difficulty": null, "source": "user", "verified": true}
+{"id": "ref-17", "split": "reference", "message": "תראה לי את ההוצאות של השבוע", "label": "query", "difficulty": null, "source": "user", "verified": true}
+{"id": "ref-18", "split": "reference", "message": "מה המאזן של דני?", "label": "query", "difficulty": null, "source": "user", "verified": true}
+{"id": "ref-19", "split": "reference", "message": "כמה עלו המים בחודש שעבר?", "label": "query", "difficulty": null, "source": "user", "verified": true}
+{"id": "ref-20", "split": "reference", "message": "יש משהו שמחכה לאישור?", "label": "query", "difficulty": null, "source": "user", "verified": true}
+{"id": "ref-21", "split": "reference", "message": "מתי אתם חוזרים?", "label": "ignore", "difficulty": null, "source": "user", "verified": true}
+{"id": "ref-22", "split": "reference", "message": "חח", "label": "ignore", "difficulty": null, "source": "user", "verified": true}
+{"id": "ref-23", "split": "reference", "message": "ערב טוב", "label": "ignore", "difficulty": null, "source": "user", "verified": true}
+{"id": "ref-24", "split": "reference", "message": "מישהו ראה את השלט?", "label": "ignore", "difficulty": null, "source": "user", "verified": true}
+{"id": "ref-25", "split": "reference", "message": "אני מאחר קצת", "label": "ignore", "difficulty": null, "source": "user", "verified": true}
+{"id": "ref-26", "split": "reference", "message": "נגמר הסבון לידיים", "label": "ignore", "difficulty": null, "source": "user", "verified": true}
+{"id": "ref-27", "split": "reference", "message": "כמה עולה אייפון חדש?", "label": "ignore", "difficulty": null, "source": "user", "verified": true}
+{"id": "ref-28", "split": "reference", "message": "הדוד לא עובד", "label": "ignore", "difficulty": null, "source": "user", "verified": true}
+{"id": "ref-29", "split": "reference", "message": "סרט הערב?", "label": "ignore", "difficulty": null, "source": "user", "verified": true}
+{"id": "ref-30", "split": "reference", "message": "see you later", "label": "ignore", "difficulty": null, "source": "user", "verified": true}

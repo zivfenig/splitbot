@@ -1,40 +1,51 @@
 ---
 name: add-eval-case
-description: Add one case to the LLM eval dataset with a human-verified expected answer. Use when the user types /add-eval-case, pastes a message the bot got wrong, or wants a new golden/adversarial case.
+description: Add or convert eval rows (extraction, router or agent) from the human's verified data, validate them, and append them to the right dataset file. Use when the user types /add-eval-case, pastes a message the bot got wrong, or sends a verified table.
 ---
 
 # Add eval case
 
-The expected answer must be verified by the human. You may draft; you may never
-mark a case verified yourself.
+The human authors ALL eval data: the messages AND the expected answers. You never draft or
+suggest either. You convert what the human gives you, validate it, and report problems
+without fixing them. `"verified": true` comes only from the human's verified file or an
+explicit statement.
 
-1. Get the input: the raw message text, and who sent it (member id).
-   If the user pasted a real bot failure, also get what the bot extracted.
+1. **Kind.** Which dataset is it: `extraction`, `router` or `agent`? Ask if unclear.
 
-2. Check for duplicates in `tests/llm_evals/datasets/` (same or near-identical text).
-   If one exists, show it and ask whether to still add.
+2. **Input.** The human's row(s): a table, a file, or a pasted real bot failure (then also the
+   sender and what the bot did; `source` is `real-failure`).
 
-3. Draft the case as ONE JSON line, following the current `ExtractedExpense` model in
-   `src/splitbot/models.py` (field names and types must match it exactly):
-   ```json
-   {"id": "he-042", "text": "...", "sender": "m_ziv",
-    "lang": "he|en|mixed",
-    "tags": ["names", "currency", "correction", "adversarial", ...],
-    "source": "user|synthetic|real-failure",
-    "expected": { ...fields with value, evidence, source... },
-    "notes": "why this case matters",
-    "verified": false}
-   ```
-   - `evidence` must be an exact substring of `text`.
-   - Defaults (ILS, payer = sender, all members) use `"source": "default"`.
-   - Ambiguous cases: the expected result is "needs_clarification", not a guess.
+3. **Duplicates.** Compare (case/whitespace-insensitive) with every file of that kind in
+   `tests/llm_evals/datasets/`. Router: a message may not appear in more than one of
+   `router_dev`, `router_test`, `router_reference`. Extraction: not in both dev and test.
+   If a duplicate exists, show it and ask; never overwrite.
 
-4. Show the draft as a short readable summary (not only JSON):
-   "Amount: ₪240 (evidence: '240') · Payer: Ziv (default) · Excluded: Dani ('בלי דני') ·
-   Subcategory: restaurant". Ask: "Correct? Edit anything?"
+4. **Format**, one JSON object per line:
+   - **extraction** (`extraction_dev.jsonl` / `extraction_test.jsonl`; roster in `rosters.json`):
+     `{"id", "split": "dev|test", "roster": "A|B", "sender_id", "message", "source":
+     "user|real-failure", "verified", "expected": <an ExtractedExpense payload incl.
+     "amount_in_words">, "scoring": {"subcategory_any_of": [..] | null, "expect_low": bool,
+     "score_confidence": bool, "score_description": bool}, "notes"}`.
+     Evidence must be an exact substring of `message`; defaults use `"source": "default"`.
+   - **router** (`router_dev.jsonl` / `router_test.jsonl` / `router_reference.jsonl`):
+     `{"id", "split": "dev|test|reference", "message", "label": "expense|query|ignore",
+     "difficulty": "easy|hard" (null for reference), "source", "verified"}`.
+   - **agent** (`agent_*.jsonl`): `{"id", "roster", "sender_id", "ledger_seed": [expenses],
+     "question", "expected_tools": [..], "forbidden_tools": [..], "must_confirm": bool,
+     "expected_facts": [numbers/strings that must appear in the answer], "max_steps",
+     "source", "verified"}`. Tool names must be real tools from `src/splitbot/tools/`.
+     If the human's own agent file uses a different shape, follow theirs and note it.
 
-5. Only after the user says it is correct: set `"verified": true` and append the line
-   to the right file (`extraction_golden.jsonl` or `extraction_adversarial.jsonl`).
+5. **Validate (read-only, never edit the data).**
+   - extraction: `ExtractedExpense.model_validate(expected)`, then `check_members` and
+     `check_grounding`. Rows whose expected answer legitimately needs a clarification (an
+     ambiguous member, an amount code rejects) are reported as "ask rows", not as errors.
+   - router: label in {expense, query, ignore}; difficulty in {easy, hard, null for reference};
+     ids unique; `split` matches the file; no text overlap across the three files.
+   - agent: tool names exist; the seeded ledger validates as `Expense` records.
+   - Every kind: every prompt file (`prompts/*.md`) must not contain a row's message (leakage).
+   Any problem: stop, list it (row id, what, why), change nothing.
 
-6. Report the dataset balance in one line, e.g.
-   "golden: 31 (he 25 / en 6) · adversarial: 9". Target is ~80% Hebrew.
+6. **Append** only rows the human marked verified, to the right file. Then report the balance
+   in one line, e.g. "extraction dev: 39 (he 30 / en 6 / mixed 3) · router dev: 65 (expense 30 /
+   query 12 / ignore 23; easy 35 / hard 30)". Extraction target is ~80% Hebrew.

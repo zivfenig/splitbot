@@ -19,6 +19,7 @@ MEMBERS = [
 ]
 ROSTER_JSON = [{"id": m.id, "name": m.name} for m in MEMBERS]
 MESSAGE = "שילמתי 240 על פיצה עם מיכל"
+WORDS_MESSAGE = "שילמתי מאה וחמישים על פיצה עם מיכל"
 PROMPT_FILE = Path(__file__).resolve().parents[2] / "prompts" / "extract_v1.md"
 
 
@@ -52,6 +53,10 @@ def run(replies, message=MESSAGE):
     return fake, result
 
 
+WORDS_REPLY = reply(
+    amount={"value": "150", "evidence": "מאה וחמישים", "source": "message"},
+    amount_in_words=True,
+)
 NOT_JSON = "sorry, I cannot do that"
 BAD_SUBCATEGORY = reply(subcategory="sushi")
 # text the model chose in the bad replies below: it must never be echoed back in the retry
@@ -75,10 +80,13 @@ MANY_EXTRA_KEYS = json.dumps({**reply_dict(), **{f"k{i}": i for i in range(2000)
         pytest.param([MANY_EXTRA_KEYS, reply()], "ok", 2, id="many-extra-keys"),
         pytest.param(["[" * 100000, reply()], "ok", 2, id="deeply-nested-json"),
         pytest.param([NOT_JSON, BAD_SUBCATEGORY], "needs_clarification", 2, id="bad-twice"),
+        pytest.param([WORDS_REPLY], "ok", 1, id="words-amount-is-ok-not-a-clarification"),
     ],
 )
 def test_at_most_one_retry_then_ok_or_needs_clarification(replies, status, n_calls):
-    fake, result = run(replies)
+    words = WORDS_REPLY in replies  # the one case whose message writes the amount in words
+    message = WORDS_MESSAGE if words else MESSAGE
+    fake, result = run(replies, message=message)
 
     assert result.status == status
     assert len(fake.calls) == n_calls
@@ -90,7 +98,8 @@ def test_at_most_one_retry_then_ok_or_needs_clarification(replies, status, n_cal
         assert result.issues == []
         e = result.expense
         assert isinstance(e, ExtractedExpense)
-        assert e.amount.value == "240"
+        assert e.amount.value == ("150" if words else "240")
+        assert e.amount_in_words is words
         assert e.payer.value.id == 1
         assert [p.id for p in e.participants.value.only] == [4]
     else:
@@ -106,7 +115,7 @@ def test_at_most_one_retry_then_ok_or_needs_clarification(replies, status, n_cal
         # the retry still carries the original data and the same instructions
         assert second_user["members"] == ROSTER_JSON
         assert second_user["sender_id"] == 1
-        assert second_user["message"] == MESSAGE
+        assert second_user["message"] == message
         assert fake.calls[1][0] == fake.calls[0][0]
         # the error names where it went wrong, never text the model chose; and it is short
         assert len(error) <= 500

@@ -5,13 +5,12 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "splitbot"
 version = "0.1.0"
-description = "Telegram bot that turns group-chat messages into Splitwise expenses, safely."
+description = "Expense-tracking assistant for a group chat: records expenses after confirmation and answers questions about the group's money."
 requires-python = ">=3.12"
 dependencies = [
     "pydantic>=2",
     "openai",
     "python-telegram-bot",
-    "mcp",
     "httpx",
     "python-dotenv",
 ]
