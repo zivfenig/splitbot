@@ -59,7 +59,7 @@ I verify: `pytest` green, test names read like rules, smoke outputs.
 - Result: Jev is the bot's router; the embedding router stays as the documented baseline.
 
 ## Stage D: Ledger tools + concurrency (~1.5h)
-- Read tools: `get_balances` (per currency, the fewest settlement transfers computed in code),
+- Read tools: `get_balances` (per currency, a small set of settlement transfers computed in code),
   `search_expenses`, `spending_summary` (category / month / payer).
 - Write tools: `propose_expense`, `propose_correction`, `propose_delete`: always run
   extractor → validators → confirmation built from the code template (always shown, whatever

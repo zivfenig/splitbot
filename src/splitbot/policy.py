@@ -1,13 +1,17 @@
-"""Who must approve an expense. Pure functions: the LLM never decides approval.
+"""How a new expense is approved. Pure functions: the LLM never decides approval.
 
-Strictness: all > author > auto. When unsure, take the strictest.
+The ONLY required approver of a new expense is its sender (the author); the confirmation is
+always shown (posted in the group) whatever the mode. Two modes: `author` waits for the sender's
+approval; `auto` (opt-in) commits after a grace window unless the sender corrects or rejects.
+Strictness: author > auto. When unsure, take the strictest (`author`). There is no `all` mode
+for new expenses (corrections and deletes use `relevant_approvers`).
 """
 
 from collections.abc import Iterable
 
 from splitbot.models import ApprovalMode, ApprovalRule, Category, Confidence, Currency, Expense, GroupConfig
 
-_STRICTNESS = {ApprovalMode.auto: 0, ApprovalMode.author: 1, ApprovalMode.all: 2}
+_STRICTNESS = {ApprovalMode.auto: 0, ApprovalMode.author: 1}
 
 
 def _matches(rule: ApprovalRule, category: Category, total: int) -> bool:
@@ -27,13 +31,14 @@ def required_approval(
     amount_in_words: bool = False,
 ) -> ApprovalMode:
     """Unknown category, low confidence or a non-ILS currency (thresholds are ILS only)
-    -> `all`. Otherwise the strictest matching rule, else the group default.
+    -> `author`. Otherwise the strictest matching rule, else the group default. The result is
+    always `author` or `auto`.
 
-    `amount_in_words=True` (the LLM converted a number written in words): the result is at
-    least `author`, even when the group default or a matching rule says `auto`; a stricter
-    result (`all`) is never loosened. It does not by itself force `all`."""
+    `amount_in_words=True` (the LLM converted a number written in words): the result is
+    `author` even when the group default or a matching rule says `auto` (a converted amount
+    never auto-commits)."""
     if category is None or confidence == Confidence.low or currency != Currency.ILS:
-        return ApprovalMode.all
+        return ApprovalMode.author
     matching = [r.mode for r in config.rules if _matches(r, category, total)]
     mode = max(matching, key=_STRICTNESS.__getitem__) if matching else config.default_mode
     if amount_in_words and mode == ApprovalMode.auto:

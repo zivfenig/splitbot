@@ -3,7 +3,7 @@ import copy
 import pytest
 
 from splitbot.models import ExtractedExpense, Participants
-from splitbot.validation import check_grounding, check_members, resolve_participants
+from splitbot.validation import check_grounding, check_members, mentions_foreign_currency, resolve_participants
 
 MEMBERS = [1, 2, 3, 4]  # 1 = author, 2 = Dani, 3 = Michal, 4 = Moshe
 AUTHOR = 1
@@ -375,3 +375,40 @@ def test_ungrounded_fields_need_clarification(message, changes, expected_issue):
         assert issues == []
     else:
         assert any(expected_issue in issue for issue in issues)
+
+
+@pytest.mark.parametrize(
+    "message, expected",
+    [
+        # symbols
+        ("שילמתי 20$", True),
+        ("50 €", True),
+        ("£30 taxi", True),
+        # codes
+        ("paid 20 USD", True),
+        ("50 EUR for dinner", True),
+        ("40 GBP", True),
+        # Hebrew words, with and without a one-letter prefix
+        ("שילמתי 20 דולר", True),
+        ("30 דולרים", True),
+        ("שילמתי 20 בדולר", True),
+        ("50 אירו", True),
+        ("50 יורו", True),
+        ("30 פאונד", True),
+        ("30 פאונדים", True),
+        # English words, any case
+        ("20 dollar", True),
+        ("20 Dollars", True),
+        ("50 euro", True),
+        ("50 EUROS", True),
+        ("30 pound", True),
+        ("30 Pounds", True),
+        # not a foreign currency
+        ("פיצה 120", False),
+        ("אירוע 120", False),  # "event", not the euro
+        ("אירוח 200", False),  # "hosting", not the euro
+        ("", False),
+    ],
+)
+def test_foreign_currency_words_are_recognised_in_hebrew_and_english(message, expected):
+    assert mentions_foreign_currency(message) is expected

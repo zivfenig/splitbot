@@ -2,8 +2,10 @@
 
 import hashlib
 import json
+import math
 import os
 from dataclasses import dataclass
+from datetime import timedelta
 from decimal import Decimal
 from pathlib import Path
 
@@ -80,3 +82,27 @@ def prices_fingerprint(path: Path | None = None) -> str:
         return hashlib.sha256(source.read_bytes()).hexdigest()[:12]
     except OSError:
         raise ConfigError(f"cannot read the price file {source.name}") from None
+
+
+def pending_expiry() -> timedelta:
+    """How long a pending write action (new expense, correction, delete) waits for a response
+    before it expires: `PENDING_EXPIRY_HOURS` (hours, may be fractional, e.g. "0.5"), default 1.
+    Read at call time. Raises ConfigError when the value is not a positive finite number."""
+    return timedelta(hours=_positive_number("PENDING_EXPIRY_HOURS", "1"))
+
+
+def auto_grace() -> timedelta:
+    """`auto` mode's grace window: `AUTO_GRACE_SECONDS` (seconds), default 60. Read at call time.
+    Raises ConfigError when the value is not a positive finite number."""
+    return timedelta(seconds=_positive_number("AUTO_GRACE_SECONDS", "60"))
+
+
+def _positive_number(name: str, default: str) -> float:
+    raw = optional(name, default)
+    try:
+        value = float(raw)
+    except ValueError:
+        raise ConfigError(f"{name} must be a number") from None
+    if not math.isfinite(value) or value <= 0:
+        raise ConfigError(f"{name} must be a positive number")
+    return value

@@ -206,6 +206,7 @@ class Expense(BaseModel):
     created_at: datetime = Field(default_factory=_utc_now)  # timezone-aware, for the 48h expiry
     state: ExpenseState = ExpenseState.pending_confirmation
     deleted: bool = False  # soft delete: the row stays, but no balance/search/summary counts it
+    words: str | None = None  # the words the amount was written in, when the LLM converted it
 
     @model_validator(mode="after")
     def shares_sum_exactly_to_total(self) -> "Expense":
@@ -227,9 +228,8 @@ class Expense(BaseModel):
 
 
 class ApprovalMode(StrEnum):
-    author = "author"  # default: the person who reported confirms
-    all = "all"  # everyone involved confirms
-    auto = "auto"  # opt-in only
+    author = "author"  # default: the sender's explicit approval
+    auto = "auto"  # opt-in: still shows the confirmation, commits after a grace window
 
 
 class ApprovalRule(BaseModel):
@@ -248,8 +248,8 @@ class ChangeKind(StrEnum):
 
 class ChangeRequest(BaseModel):
     """A correction or delete of a confirmed expense. It changes the ledger only after ALL the
-    relevant people approved (see policy.relevant_approvers). The requester's own approval is
-    recorded when it is created."""
+    relevant people approved (see policy.relevant_approvers), the requester included: nobody is
+    approved automatically, everyone presses approve after seeing the exact numbers."""
 
     id: int | None = None
     chat_id: int
@@ -262,6 +262,7 @@ class ChangeRequest(BaseModel):
     approvals: dict[int, bool] = {}  # user id -> True (✓) / False (✗)
     created_at: datetime = Field(default_factory=_utc_now)
     state: ExpenseState = ExpenseState.pending_confirmation
+    version: int = 0  # managed by the store: bumped on every write, used for compare-and-swap
 
     @model_validator(mode="after")
     def is_consistent(self) -> "ChangeRequest":

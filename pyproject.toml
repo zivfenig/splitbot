@@ -26,6 +26,6 @@ where = ["src"]
 
 [tool.pytest.ini_options]
 # Default run = unit + integration only. LLM evals (real API calls) are run explicitly.
-testpaths = ["tests/unit", "tests/integration"]
+testpaths = ["tests/unit", "tests/integration", "tests/concurrency"]
 # Lets tests import shared test doubles as `tests.fakes`.
 pythonpath = ["."]

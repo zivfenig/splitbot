@@ -1,4 +1,5 @@
 import itertools
+import sqlite3
 from datetime import date, datetime, timedelta, timezone
 
 import pytest
@@ -14,7 +15,7 @@ from splitbot.models import (
     Subcategory,
 )
 from splitbot.state import IllegalTransition
-from splitbot.store import DuplicateMessage, NotRelevantApprover, StateConflict, Store
+from splitbot.store import DuplicateMessage, Expired, NotRelevantApprover, StateConflict, Store
 
 ILS, USD = Currency.ILS, Currency.USD
 PENDING, CONFIRMED = ExpenseState.pending_confirmation, ExpenseState.confirmed
@@ -82,7 +83,7 @@ def make_change(expense: Expense, kind=ChangeKind.delete, *, by=1, message_id=No
 
 def delete_by_everyone(store: Store, expense: Expense) -> None:
     request = store.create_change_request(make_change(expense))
-    for user in request.required_approvers[1:]:
+    for user in request.required_approvers:  # nobody is approved automatically, the requester votes too
         request = store.respond(request.id, user, True)
     assert request.state == CONFIRMED
 
@@ -105,6 +106,10 @@ def test_one_expense_per_message_and_survives_restart(tmp_path):
     with pytest.raises(DuplicateMessage):
         store.save_expense(make_expense(message_id=20, description="second"))
     assert store.get_expense(first.id) == first
+    assert store.get_expense_by_message(1, 20) == first
+    assert store.get_expense_by_message(1, 10) is None  # processed, but no expense
+    assert store.get_expense_by_message(1, 21) is None
+    assert store.get_expense_by_message(2, 20) is None  # same message id, another chat
     with pytest.raises(KeyError):
         store.get_expense(first.id + 1)  # the duplicate left no row behind
 
@@ -114,12 +119,33 @@ def test_one_expense_per_message_and_survives_restart(tmp_path):
     with pytest.raises(DuplicateMessage):
         store.save_expense(make_expense(message_id=30))
 
+    # one message = one record: an expense and a change request can never share a (chat, message)
+    target = save_confirmed(store, message_id=50)
+    with pytest.raises(DuplicateMessage):
+        store.create_change_request(make_change(target, message_id=20))  # 20 already produced an expense
+    with pytest.raises(KeyError):
+        store.get_change_request(1)  # ...and nothing was stored
+    store.create_change_request(make_change(target, message_id=60))
+    with pytest.raises(DuplicateMessage):
+        store.save_expense(make_expense(message_id=60))  # 60 already produced a change request
+    assert store.get_expense_by_message(1, 60) is None
+    assert store.get_expense(target.id) == target
+
     path = str(tmp_path / "ledger.db")
     original = Store(path)
     saved = original.save_expense(make_expense(message_id=40))
     original.mark_processed(1, 41)
+    file_target = save_confirmed(original, message_id=42)
+    original.create_change_request(make_change(file_target, message_id=43))
     reopened = Store(path)
     assert reopened.get_expense(saved.id) == saved
+    with pytest.raises(DuplicateMessage):
+        reopened.create_change_request(make_change(file_target, message_id=40))  # 40 is an expense
+    with pytest.raises(DuplicateMessage):
+        reopened.save_expense(make_expense(message_id=43))  # 43 is a change request
+    assert reopened.get_expense_by_message(1, 40) == saved
+    assert sqlite3.connect(path).execute("PRAGMA journal_mode").fetchone()[0].lower() == "wal"
+    Store(str(tmp_path / "other.db"), busy_timeout_ms=1234)  # the busy timeout is accepted
     assert reopened.is_processed(1, 40)
     assert reopened.is_processed(1, 41)
     assert reopened.mark_processed(1, 41) is False
@@ -282,7 +308,7 @@ def test_search_and_summary_read_only_confirmed_expenses():
 # --- 5 --------------------------------------------------------------------------------------
 
 
-def test_correction_or_delete_applies_only_after_all_approvals_exactly_once():
+def test_correction_or_delete_applies_only_after_all_approvals_exactly_once(tmp_path, monkeypatch):
     store = Store(":memory:")
     original = save_confirmed(store, description="dinner", message_id=1)
     balances_before = store.balances(1)
@@ -298,9 +324,13 @@ def test_correction_or_delete_applies_only_after_all_approvals_exactly_once():
     request = store.create_change_request(make_change(original, ChangeKind.correction, proposed=proposed, message_id=500))
     assert request.id is not None
     assert request.state == PENDING
-    assert request.approvals == {1: True}
+    assert request.approvals == {}  # nobody is approved automatically, not even the requester
     assert store.get_expense(original.id) == original
+    assert store.balances(1) == balances_before
 
+    request = store.respond(request.id, 1, True)  # the requester votes like everyone else
+    assert request.state == PENDING
+    assert request.approvals == {1: True}
     request = store.respond(request.id, 2, True)
     assert request.state == PENDING
     assert store.get_expense(original.id) == original
@@ -344,15 +374,22 @@ def test_correction_or_delete_applies_only_after_all_approvals_exactly_once():
     # only "dinner (fixed)" (+80.00, -40.00, -40.00) and "lunch" (+60.00, -30.00, -30.00) are left
     assert store.balances(1) == {ILS: {1: 14000, 2: -7000, 3: -7000}}
 
-    # a group of one is confirmed and applied at once
+    # a group of one still has to press approve: pending and untouched until the requester votes
     solo_shares = shares_of({1: 5000}, {1: 5000})
     solo_edit = save_confirmed(store, chat_id=5, total=5000, shares=solo_shares, message_id=1)
     solo_proposed = make_expense(chat_id=5, total=7000, description="solo fixed", shares=shares_of({1: 7000}, {1: 7000}))
     request = store.create_change_request(make_change(solo_edit, ChangeKind.correction, proposed=solo_proposed))
+    assert request.state == PENDING
+    assert request.approvals == {}
+    assert store.get_expense(solo_edit.id) == solo_edit
+    request = store.respond(request.id, 1, True)
     assert request.state == CONFIRMED
     assert store.get_expense(solo_edit.id).total == 7000
     solo_delete = save_confirmed(store, chat_id=5, total=5000, shares=solo_shares, message_id=2)
     request = store.create_change_request(make_change(solo_delete))
+    assert request.state == PENDING
+    assert store.get_expense(solo_delete.id).deleted is False
+    request = store.respond(request.id, 1, True)
     assert request.state == CONFIRMED
     assert store.get_expense(solo_delete.id).deleted is True
 
@@ -369,14 +406,36 @@ def test_correction_or_delete_applies_only_after_all_approvals_exactly_once():
     with pytest.raises(DuplicateMessage):
         store.create_change_request(make_change(live, message_id=777))
 
+    # lost update (a real bug): store B decides from a request it read BEFORE store A's vote
+    path = str(tmp_path / "shared.db")
+    a, b = Store(path), Store(path)
+    shared = save_confirmed(a, description="shared")
+    request = a.create_change_request(make_change(shared))
+    a.respond(request.id, 1, True)
+    stale = b.get_change_request(request.id)
+    a.respond(request.id, 2, True)
+    monkeypatch.setattr(b, "get_change_request", lambda _id: stale)
+    with pytest.raises(StateConflict):
+        b.respond(request.id, 3, True)
+    monkeypatch.undo()
+    stored = a.get_change_request(request.id)
+    assert stored.approvals == {1: True, 2: True}  # A's vote survived, B's vote was not stored
+    assert stored.state == PENDING
+    assert a.get_expense(shared.id).deleted is False
+    request = b.respond(request.id, 3, True)  # after re-reading, B can vote
+    assert request.approvals == {1: True, 2: True, 3: True}
+    assert request.state == CONFIRMED
+    assert a.get_expense(shared.id).deleted is True
+
 
 # --- 6 --------------------------------------------------------------------------------------
 
 
-def test_stale_pending_items_expire():
+def test_stale_pending_items_expire(monkeypatch):
+    monkeypatch.delenv("PENDING_EXPIRY_HOURS", raising=False)  # the default is 1 hour
     store = Store(":memory:")
     now = datetime(2026, 3, 10, 12, 0, tzinfo=timezone.utc)
-    old, fresh = now - timedelta(hours=49), now - timedelta(hours=47)
+    old, fresh = now - timedelta(hours=2), now - timedelta(minutes=30)
 
     old_pending = store.save_expense(make_expense(created_at=old))
     fresh_pending = store.save_expense(make_expense(created_at=fresh))
@@ -385,15 +444,22 @@ def test_stale_pending_items_expire():
     target_b = save_confirmed(store, created_at=fresh)
     old_request = store.create_change_request(make_change(target_a, created_at=old))
     fresh_request = store.create_change_request(make_change(target_b, created_at=fresh))
+    balances = store.balances(1)
 
-    assert store.expire_stale(now) == 2
+    expired = store.expire_stale(now)
+    assert len(expired) == 2
+    assert set(expired) == {
+        Expired(kind="expense", id=old_pending.id, chat_id=1, message_id=old_pending.message_id),
+        Expired(kind="change_request", id=old_request.id, chat_id=1, message_id=old_request.message_id),
+    }
     assert store.get_expense(old_pending.id).state == ExpenseState.expired
     assert store.get_change_request(old_request.id).state == ExpenseState.expired
     assert store.get_expense(fresh_pending.id).state == PENDING
     assert store.get_change_request(fresh_request.id).state == PENDING
     assert store.get_expense(old_confirmed.id).state == CONFIRMED
     assert store.get_expense(target_a.id) == target_a  # an expired request changed nothing
-    assert store.expire_stale(now) == 0
+    assert store.balances(1) == balances  # nothing was written to the ledger
+    assert store.expire_stale(now) == []
 
     with pytest.raises(IllegalTransition):
         store.set_state(old_pending.id, CONFIRMED)
@@ -401,3 +467,201 @@ def test_stale_pending_items_expire():
         store.respond(old_request.id, 2, True)
     assert store.get_expense(old_pending.id).state == ExpenseState.expired
     assert store.get_expense(target_a.id).deleted is False
+
+    # an explicit expiry wins over the default: the 30-minute-old items now count as stale
+    later = store.expire_stale(now, expiry=timedelta(minutes=10))
+    assert {(e.kind, e.id) for e in later} == {("expense", fresh_pending.id), ("change_request", fresh_request.id)}
+    assert store.get_expense(old_confirmed.id).state == CONFIRMED
+    assert store.balances(1) == balances
+
+
+# --- 7 --------------------------------------------------------------------------------------
+
+
+def test_only_the_sender_answers_a_new_expense_and_only_once(tmp_path, monkeypatch):
+    store = Store(":memory:")  # make_expense: user 1 is the author
+
+    approved = store.save_expense(make_expense())
+    assert store.respond_expense(approved.id, 1, True).state == CONFIRMED
+    assert store.get_expense(approved.id).state == CONFIRMED
+
+    rejected = store.save_expense(make_expense())
+    assert store.respond_expense(rejected.id, 1, False).state == ExpenseState.rejected
+    assert store.get_expense(rejected.id).state == ExpenseState.rejected
+
+    # someone else may not answer for the sender; nothing changes, the sender can still answer
+    other = store.save_expense(make_expense())
+    with pytest.raises(NotRelevantApprover):
+        store.respond_expense(other.id, 2, True)
+    with pytest.raises(NotRelevantApprover):
+        store.respond_expense(other.id, 2, False)
+    assert store.get_expense(other.id).state == PENDING
+    assert store.respond_expense(other.id, 1, True).state == CONFIRMED
+
+    # only the first answer counts, whatever the second one says
+    for second in (True, False):
+        with pytest.raises(IllegalTransition):
+            store.respond_expense(other.id, 1, second)
+        with pytest.raises(IllegalTransition):
+            store.respond_expense(rejected.id, 1, second)
+    assert store.get_expense(other.id).state == CONFIRMED
+    assert store.get_expense(rejected.id).state == ExpenseState.rejected
+
+    with pytest.raises(KeyError):
+        store.respond_expense(99999, 1, True)
+
+    now = datetime(2026, 3, 10, 12, 0, tzinfo=timezone.utc)
+    late = store.save_expense(make_expense(created_at=now - timedelta(hours=2)))
+    store.expire_stale(now, expiry=timedelta(hours=1))
+    with pytest.raises(IllegalTransition):
+        store.respond_expense(late.id, 1, True)
+    assert store.get_expense(late.id).state == ExpenseState.expired
+
+    # only the two confirmed expenses count (30.00 each owed by users 1, 2, 3; user 1 paid 90.00)
+    assert store.balances(1) == {ILS: {1: 12000, 2: -6000, 3: -6000}}
+
+    # stale read: store B holds a "pending" copy while store A already rejected the expense
+    path = str(tmp_path / "shared.db")
+    a, b = Store(path), Store(path)
+    contested = a.save_expense(make_expense())
+    stale = b.get_expense(contested.id)
+    a.respond_expense(contested.id, 1, False)
+    monkeypatch.setattr(b, "get_expense", lambda _id: stale)
+    with pytest.raises(StateConflict):
+        b.respond_expense(contested.id, 1, True)
+    monkeypatch.undo()
+    assert a.get_expense(contested.id).state == ExpenseState.rejected
+    assert a.balances(1) == {}
+
+
+# --- 8 --------------------------------------------------------------------------------------
+
+T0 = datetime(2026, 3, 10, 12, 0, tzinfo=timezone.utc)
+
+
+def test_an_answer_after_expiry_is_refused_even_before_the_sweeper_runs(monkeypatch):
+    monkeypatch.delenv("PENDING_EXPIRY_HOURS", raising=False)  # the default is 1 hour
+    store = Store(":memory:")
+    target = save_confirmed(store, description="target")
+
+    def new_expense():
+        return store.save_expense(make_expense(created_at=T0))
+
+    def new_request():
+        return store.create_change_request(make_change(target, created_at=T0))
+
+    # a new expense
+    assert store.respond_expense(new_expense().id, 1, True, now=T0 + timedelta(minutes=59)).state == CONFIRMED
+    assert store.respond_expense(new_expense().id, 1, False, now=None).state == ExpenseState.rejected  # no check
+    for late in (timedelta(hours=1), timedelta(hours=2)):  # exactly the expiry counts as expired
+        expense = new_expense()
+        balances = store.balances(1)
+        with pytest.raises(IllegalTransition):
+            store.respond_expense(expense.id, 1, True, now=T0 + late)
+        assert store.get_expense(expense.id).state == ExpenseState.expired
+        assert store.balances(1) == balances
+        with pytest.raises(IllegalTransition):  # a later answer, with or without a clock, never confirms
+            store.respond_expense(expense.id, 1, True, now=None)
+        assert store.get_expense(expense.id).state == ExpenseState.expired
+
+    # a change request
+    for late in (timedelta(hours=1), timedelta(hours=2)):
+        request = new_request()
+        with pytest.raises(IllegalTransition):
+            store.respond(request.id, 1, True, now=T0 + late)
+        stored = store.get_change_request(request.id)
+        assert stored.state == ExpenseState.expired
+        assert stored.approvals == {}
+        with pytest.raises(IllegalTransition):
+            store.respond(request.id, 2, True, now=None)
+        assert store.get_change_request(request.id).state == ExpenseState.expired
+        assert store.get_expense(target.id) == target
+    unchecked = new_request()
+    assert store.respond(unchecked.id, 1, True, now=None).approvals == {1: True}  # now=None skips the check
+    request = new_request()
+    for user in (1, 2, 3):
+        request = store.respond(request.id, user, True, now=T0 + timedelta(minutes=59))
+    assert request.state == CONFIRMED
+    assert store.get_expense(target.id).deleted is True
+
+
+# --- 9 --------------------------------------------------------------------------------------
+
+
+def test_a_change_is_refused_when_its_target_was_changed_meanwhile():
+    store = Store(":memory:")
+    proposed = make_expense(
+        description="dinner (fixed)", total=12000, shares=shares_of({1: 12000}, {1: 4000, 2: 4000, 3: 4000})
+    )
+
+    def approve(request, users):
+        for user in users:
+            request = store.respond(request.id, user, True)
+        return request
+
+    # the delete wins: the correction's last approval must not resurrect or rewrite the expense
+    expense = save_confirmed(store, description="dinner")
+    delete = store.create_change_request(make_change(expense))
+    correction = store.create_change_request(make_change(expense, ChangeKind.correction, proposed=proposed))
+    assert delete.state == correction.state == PENDING
+    approve(correction, [1, 2])
+    approve(delete, [1, 2, 3])
+    deleted = store.get_expense(expense.id)
+    assert deleted.deleted is True and deleted.description == "dinner"
+    with pytest.raises(StateConflict):
+        store.respond(correction.id, 3, True)
+    assert store.get_expense(expense.id) == deleted
+    stored = store.get_change_request(correction.id)
+    assert stored.state == PENDING
+    assert stored.approvals == {1: True, 2: True}  # the last vote was not stored
+
+    # the correction wins: the delete's last approval still applies, the target is still live
+    other = save_confirmed(store, description="lunch")
+    correction = store.create_change_request(make_change(other, ChangeKind.correction, proposed=proposed))
+    delete = store.create_change_request(make_change(other))
+    approve(delete, [1, 2])
+    assert approve(correction, [1, 2, 3]).state == CONFIRMED
+    assert store.get_expense(other.id).description == "dinner (fixed)"
+    assert store.get_expense(other.id).deleted is False
+    assert approve(delete, [3]).state == CONFIRMED
+    assert store.get_expense(other.id).deleted is True
+
+
+# --- 10 -------------------------------------------------------------------------------------
+
+
+class FailingCommit:
+    """Delegates everything to the real connection, but the first COMMIT raises."""
+
+    def __init__(self, real):
+        self._real = real
+        self.armed = True
+
+    def execute(self, sql, *args, **kwargs):
+        if self.armed and sql.strip().upper() == "COMMIT":
+            self.armed = False
+            raise sqlite3.OperationalError("disk I/O error")
+        return self._real.execute(sql, *args, **kwargs)
+
+    def __getattr__(self, name):
+        return getattr(self._real, name)
+
+
+def test_a_failing_commit_rolls_back_and_leaves_the_store_usable():
+    store = Store(":memory:")
+    store._db = FailingCommit(store._db)
+    with pytest.raises(sqlite3.OperationalError):
+        store.save_expense(make_expense(message_id=1))
+    assert store.get_expense_by_message(1, 1) is None  # not stored
+    assert not store.is_processed(1, 1)
+
+    # the very next calls work (no "cannot start a transaction within a transaction")
+    saved = store.save_expense(make_expense(message_id=1))
+    assert store.get_expense_by_message(1, 1) == saved
+    store.save_expense(make_expense(message_id=2))
+
+    store._db.armed = True
+    with pytest.raises(sqlite3.OperationalError):
+        store.respond_expense(saved.id, 1, True)
+    assert store.get_expense(saved.id).state == PENDING
+    assert store.respond_expense(saved.id, 1, True).state == CONFIRMED

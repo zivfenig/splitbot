@@ -43,5 +43,9 @@ load testing over HTTP.
 - Invisible characters in Hebrew text (RLM/LRM, ZWSP) and gershayim variants (״ vs ") are not
   normalized; the effect is a needless clarification question, not a wrong expense.
 - Store: behavior with several processes writing at once is not tested (the concurrency tests
-  use threads on one database file).
+  use threads on one database file, on one machine).
+- Settlement transfers use a greedy rule: for large groups the number of transfers is not
+  guaranteed to be the true minimum (the money is always exact).
+- The free-text approval loop, the `auto` grace window, the expiry notice in the group and
+  `/pending` are built in later stages and are not covered yet.
 - An unknown expense id in the store raises `KeyError`; not asserted.

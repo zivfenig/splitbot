@@ -54,14 +54,34 @@ def test_change_needs_all_relevant_approvals_and_one_no_cancels(required, approv
 T0 = datetime(2026, 3, 1, 12, 0, 0, tzinfo=timezone.utc)
 
 
+MIN = timedelta(minutes=1)
+HOUR = timedelta(hours=1)
+
+
 @pytest.mark.parametrize(
-    "age, expected",
+    "age, expiry, env_hours, expected",
     [
-        (timedelta(0), False),
-        (timedelta(hours=47, minutes=59, seconds=59), False),
-        (timedelta(hours=48), True),
-        (timedelta(hours=49), True),
+        # default: 1 hour
+        (timedelta(0), None, None, False),
+        (59 * MIN + timedelta(seconds=59), None, None, False),
+        (HOUR, None, None, True),
+        (2 * HOUR, None, None, True),
+        # an explicit argument wins over the default and over the environment
+        (2 * HOUR, timedelta(hours=3), None, False),
+        (3 * HOUR, timedelta(hours=3), None, True),
+        (30 * MIN, timedelta(minutes=10), "5", True),
+        (30 * MIN, timedelta(hours=2), "0.1", False),
+        # the environment (fractional hours), read at call time
+        (29 * MIN, None, "0.5", False),
+        (30 * MIN, None, "0.5", True),
     ],
 )
-def test_pending_items_expire_after_48_hours(age, expected):
-    assert is_expired(T0, T0 + age) is expected
+def test_pending_items_expire_after_the_configured_time(monkeypatch, age, expiry, env_hours, expected):
+    if env_hours is None:
+        monkeypatch.delenv("PENDING_EXPIRY_HOURS", raising=False)
+    else:
+        monkeypatch.setenv("PENDING_EXPIRY_HOURS", env_hours)
+    if expiry is None:
+        assert is_expired(T0, T0 + age) is expected
+    else:
+        assert is_expired(T0, T0 + age, expiry=expiry) is expected

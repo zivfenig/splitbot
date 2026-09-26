@@ -119,7 +119,9 @@ the exact number before it's stored and can correct it.
   unsure / low confidence / non-ILS / converted amount → `author`.
 - **Corrections & deletes**: target found by Telegram reply (certain) or by `refers_to` hint +
   user picks from a list. Require approval of all relevant people (payer + everyone with an
-  owed share, + anyone a correction adds). One ✗ cancels.
+  owed share, + anyone a correction adds). One ✗ cancels. Nobody is approved automatically:
+  the requester, and a group of one, press ✓ after seeing the exact numbers like everyone else.
+  Only a sender who is on the roster can propose anything.
 - **Pending-action expiry**: every pending write action (new expense, correction, delete)
   expires after 1 hour with no response (`PENDING_EXPIRY_HOURS`, default 1), whatever the
   approval mode. On expiry nothing is written and the bot posts a short one-line notice in

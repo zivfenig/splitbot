@@ -16,7 +16,7 @@ _NUMBER = re.compile(r"[0-9]+(?:[.,][0-9]+)*")
 # so "אירוע" (event) does not count as "אירו" (euro).
 _FOREIGN_CURRENCY = re.compile(
     r"[$€£]"
-    r"|(?<!\w)(?:usd|eur|gbp|dollars?|euros?)(?!\w)"
+    r"|(?<!\w)(?:usd|eur|gbp|dollars?|euros?|pounds?)(?!\w)"
     r"|(?<!\w)[בלהמשכו]?(?:דולר(?:ים)?|אירו|יורו|פאונד(?:ים)?)(?!\w)"
 )
 
@@ -148,7 +148,7 @@ def check_grounding(extracted: ExtractedExpense, message: str, *, author_id: int
         if c.value != Currency.ILS and c.source != "message":
             issues.append("currency: a non-ILS currency needs evidence from the message")
         issues += _evidence_issues("currency", c.evidence, c.source, text)
-        if c.value == Currency.ILS and c.source == "default" and _FOREIGN_CURRENCY.search(text):
+        if c.value == Currency.ILS and c.source == "default" and mentions_foreign_currency(message):
             issues.append("currency: the message seems to name a foreign currency but ILS is a default")
 
     if extracted.payer:
@@ -176,3 +176,11 @@ def check_grounding(extracted: ExtractedExpense, message: str, *, author_id: int
         issues += _evidence_issues(name, person.evidence, "message", text)
         issues += _amount_issues(name, person.amount, person.evidence, text)
     return issues
+
+
+def mentions_foreign_currency(message: str) -> bool:
+    """True when the message names a foreign currency: a symbol ($ € £), a code (USD, EUR, GBP) or
+    the English/Hebrew word for dollar, euro or pound (a one-letter Hebrew prefix such as "ב" is
+    allowed; "אירוע" and "אירוח" are NOT the euro). Heuristic, same rule `check_grounding` uses."""
+    visible = "".join(c for c in message if unicodedata.category(c) != "Cf")  # no hiding it in zero-width characters
+    return _FOREIGN_CURRENCY.search(normalize(visible)) is not None

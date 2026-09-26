@@ -82,3 +82,11 @@ def split_expense(
     owed = _exact_owed(total, author_id, exact) if exact else _equal_owed(total, payer_id, participants)
     ids = list(owed) if payer_id in owed else [*owed, payer_id]
     return [Share(user_id=i, paid=total if i == payer_id else 0, owed=owed.get(i, 0)) for i in ids]
+
+
+def display_amount(minor: int) -> str:
+    """How a user sees an amount: whole amounts without decimals ("120"), others with two
+    ("38.90", "0.05"); negative amounts get a leading "-". Integers only, never float."""
+    whole, frac = divmod(abs(minor), 100)
+    sign = "-" if minor < 0 else ""
+    return f"{sign}{whole}" if frac == 0 else f"{sign}{whole}.{frac:02d}"

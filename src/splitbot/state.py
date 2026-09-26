@@ -1,15 +1,15 @@
 """State machine for expenses and change requests, and the approval outcome. Pure.
 
 States: pending_confirmation -> confirmed | rejected | expired. confirmed, rejected and expired
-are final. A change request (correction/delete) uses the same states.
+are final. A change request (correction/delete) uses the same states. Every pending write action
+expires after `config.pending_expiry()` (default 1 hour).
 """
 
 from collections.abc import Iterable, Mapping
 from datetime import datetime, timedelta
 
+from splitbot.config import pending_expiry
 from splitbot.models import ExpenseState
-
-EXPIRY = timedelta(hours=48)
 
 _ALLOWED: dict[ExpenseState, set[ExpenseState]] = {
     ExpenseState.pending_confirmation: {ExpenseState.confirmed, ExpenseState.rejected, ExpenseState.expired},
@@ -49,7 +49,8 @@ def approval_outcome(required: Iterable[int], approvals: Mapping[int, bool]) -> 
     return ExpenseState.pending_confirmation
 
 
-def is_expired(created_at: datetime, now: datetime) -> bool:
-    """True when at least EXPIRY (48 hours) have passed since `created_at` (timezone-aware
-    datetimes; exactly 48 hours counts as expired)."""
-    return now - created_at >= EXPIRY
+def is_expired(created_at: datetime, now: datetime, expiry: timedelta | None = None) -> bool:
+    """True when at least `expiry` has passed since `created_at` (timezone-aware datetimes;
+    exactly `expiry` counts as expired). `expiry` defaults to `config.pending_expiry()`
+    (PENDING_EXPIRY_HOURS, default 1 hour), read at call time."""
+    return now - created_at >= (expiry if expiry is not None else pending_expiry())
