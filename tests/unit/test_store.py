@@ -665,3 +665,135 @@ def test_a_failing_commit_rolls_back_and_leaves_the_store_usable():
         store.respond_expense(saved.id, 1, True)
     assert store.get_expense(saved.id).state == PENDING
     assert store.respond_expense(saved.id, 1, True).state == CONFIRMED
+
+
+# --- 11 -------------------------------------------------------------------------------------
+
+
+def test_revise_pending_expense_replaces_content_and_resets_expiry():
+    store = Store(":memory:")
+    old_created = datetime(2026, 3, 1, 8, 0, tzinfo=timezone.utc)
+    pending = store.save_expense(make_expense(created_at=old_created))
+    later = old_created + timedelta(minutes=45)
+
+    replacement = make_expense(
+        message_id=pending.message_id,  # ignored: the store keeps the original identity fields
+        total=15000,
+        shares=shares_of({1: 15000}, {1: 5000, 2: 5000, 3: 5000}),
+    ).model_copy(update={"version": pending.version})
+
+    updated = store.revise_pending_expense(pending.id, replacement, now=later)
+
+    assert updated.total == 15000
+    assert _shares_of(updated) == {1: (15000, 5000), 2: (0, 5000), 3: (0, 5000)}
+    assert updated.version == pending.version + 1
+    assert updated.created_at == later  # expiry is reset to NOW, not counted from the original time
+    assert (updated.id, updated.chat_id, updated.message_id, updated.author_id) == (
+        pending.id, pending.chat_id, pending.message_id, pending.author_id,
+    )
+    assert updated.state == PENDING
+    stored = store.get_expense(pending.id)
+    assert stored == updated
+
+    # now=None resets created_at to the real wall clock, not the caller's `later`
+    fresh = store.save_expense(make_expense(created_at=old_created, message_id=pending.message_id + 1))
+    again = replacement.model_copy(update={"version": fresh.version})
+    before_call = datetime.now(timezone.utc)
+    revised_no_now = store.revise_pending_expense(fresh.id, again)
+    assert revised_no_now.created_at >= before_call
+    assert (revised_no_now.created_at - before_call).total_seconds() < 5
+
+
+def _shares_of(expense) -> dict[int, tuple[int, int]]:
+    return {s.user_id: (s.paid, s.owed) for s in expense.shares}
+
+
+def test_revise_pending_expense_is_compare_and_swap_on_version():
+    store = Store(":memory:")
+    pending = store.save_expense(make_expense(total=15000, shares=shares_of({1: 15000}, {1: 5000, 2: 5000, 3: 5000})))
+    stale = store.get_expense(pending.id)  # version 0, read before anyone else touches it
+
+    # someone else revises the SAME expense first: the real stored version becomes 1
+    real_writer_replacement = make_expense(
+        total=30000, shares=shares_of({1: 30000}, {1: 10000, 2: 10000, 3: 10000})
+    ).model_copy(update={"version": stale.version})
+    winner = store.revise_pending_expense(pending.id, real_writer_replacement, now=T0)
+    assert winner.total == 30000 and winner.version == 1
+
+    # a naive implementation that compares the freshly-read `current.version` to ITSELF (instead
+    # of to `replacement.version`, the caller's own stale expectation) would let this through and
+    # silently overwrite the real writer's change. The real store must reject it instead.
+    our_stale_replacement = make_expense(
+        total=9000, shares=shares_of({1: 9000}, {1: 3000, 2: 3000, 3: 3000})
+    ).model_copy(update={"version": stale.version})  # version 0: stale
+    with pytest.raises(StateConflict):
+        store.revise_pending_expense(pending.id, our_stale_replacement, now=T0)
+    after = store.get_expense(pending.id)
+    assert after.total == 30000  # the real writer's change was NOT overwritten
+    assert after.version == 1
+
+    # the reverse: a stale `respond_expense` call (read before a revision) must also conflict
+    store2 = Store(":memory:")
+    pending2 = store2.save_expense(make_expense())
+    stale2 = store2.get_expense(pending2.id)  # version 0
+    revised2_replacement = make_expense(total=20000, shares=shares_of({1: 20000}, {1: 20000})).model_copy(
+        update={"version": stale2.version}
+    )
+    store2.revise_pending_expense(pending2.id, revised2_replacement, now=T0)  # bumps to version 1
+    assert store2.get_expense(pending2.id).total == 20000
+
+    def stale_read(_id, _stale=stale2):
+        return _stale
+
+    original_get_expense = store2.get_expense
+    store2.get_expense = stale_read
+    try:
+        with pytest.raises(StateConflict):
+            store2.respond_expense(pending2.id, 1, True, now=T0)
+    finally:
+        store2.get_expense = original_get_expense
+    final2 = store2.get_expense(pending2.id)
+    assert final2.total == 20000  # the revision survived; the stale confirmation did not apply
+    assert final2.state == PENDING
+
+
+def test_revise_pending_expense_refuses_a_non_pending_expense():
+    store = Store(":memory:")
+    replacement = make_expense(total=9000, shares=shares_of({1: 9000}, {1: 3000, 2: 3000, 3: 3000}))
+
+    confirmed = save_confirmed(store)
+    with pytest.raises(IllegalTransition):
+        store.revise_pending_expense(confirmed.id, replacement.model_copy(update={"version": confirmed.version}))
+    assert store.get_expense(confirmed.id) == confirmed
+
+    rejected = store.save_expense(make_expense())
+    rejected = store.respond_expense(rejected.id, rejected.author_id, False)
+    with pytest.raises(IllegalTransition):
+        store.revise_pending_expense(rejected.id, replacement.model_copy(update={"version": rejected.version}))
+    assert store.get_expense(rejected.id) == rejected
+
+    old = store.save_expense(make_expense(created_at=T0))
+    store.expire_stale(T0 + timedelta(hours=2))
+    expired = store.get_expense(old.id)
+    assert expired.state == ExpenseState.expired
+    with pytest.raises(IllegalTransition):
+        store.revise_pending_expense(old.id, replacement.model_copy(update={"version": expired.version}))
+    assert store.get_expense(old.id) == expired
+
+
+def test_revise_pending_expense_after_expiry_is_refused_and_the_record_expires():
+    store = Store(":memory:")
+
+    for late in (timedelta(hours=1), timedelta(hours=2)):  # exactly the expiry counts as expired
+        target = store.save_expense(make_expense(created_at=T0))
+        replacement = make_expense(total=9000, shares=shares_of({1: 9000}, {1: 3000, 2: 3000, 3: 3000})).model_copy(
+            update={"version": target.version}
+        )
+        with pytest.raises(IllegalTransition):
+            store.revise_pending_expense(target.id, replacement, now=T0 + late)
+        stored = store.get_expense(target.id)
+        assert stored.state == ExpenseState.expired  # left expired, not reverted
+        assert stored.total == target.total  # never revised
+        with pytest.raises(IllegalTransition):  # a later attempt, with or without a clock, never revises it
+            store.revise_pending_expense(target.id, replacement, now=None)
+        assert store.get_expense(target.id).state == ExpenseState.expired

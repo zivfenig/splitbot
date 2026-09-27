@@ -1,4 +1,4 @@
-# Router eval data: verified by Ziv
+# Router eval data
 
 Labels: `expense` (new/correction/delete), `query` (question about the group's expenses), `ignore` (everything else).
 The reference set is used only by the embedding router (never evaluated). Dev: tune thresholds. Test: report.

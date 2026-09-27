@@ -7,7 +7,7 @@ import re
 from dataclasses import dataclass
 
 from splitbot.models import Category, Currency, Member, Subcategory
-from splitbot.money import display_amount
+from splitbot.money import display_amount, parse_amount
 from splitbot.store import Store
 
 _MONTH = re.compile(r"\d{4}-(0[1-9]|1[0-2])")
@@ -102,13 +102,18 @@ class ReadTools:
         payer_id: int | None = None,
         currency: str | None = None,
         month: str | None = None,
-        min_total: int | None = None,
-        max_total: int | None = None,
+        min_total: str | None = None,
+        max_total: str | None = None,
         limit: int = 20,
     ) -> dict:
         """Wraps `Store.search_expenses` (same filters, newest first). `category`/`subcategory`/
         `currency` are the enum VALUES as strings ("eating_out", "groceries", "ILS"); an unknown one,
         a `month` that is not "YYYY-MM", or a limit outside 1..50 raises ToolError.
+        `min_total` / `max_total` are PLAIN AMOUNT STRINGS as a person writes them ("150", "38.90"):
+        the code converts them to minor units with `money.parse_amount`, the model never does that
+        arithmetic. Both bounds are inclusive. A value that is not a string, or that
+        `parse_amount` rejects (not a number, zero or negative, ambiguous like "1.200", above the
+        cap), raises ToolError and nothing is searched.
         Returns {"count": n, "expenses": [{"id", "description", "total", "total_minor",
         "currency", "category", "subcategory", "spent_on" ("YYYY-MM-DD"), "payers": [names],
         "shares": [{"user_id", "name", "paid", "owed"}]}]} (display strings for the amounts)."""
@@ -116,6 +121,8 @@ class ReadTools:
             raise ToolError("limit must be between 1 and 50")
         if month is not None:
             _check_month(month)
+        min_minor = _minor_units(min_total, "min_total")
+        max_minor = _minor_units(max_total, "max_total")
         found = self._store.search_expenses(
             self._chat_id,
             text=text,
@@ -124,8 +131,8 @@ class ReadTools:
             payer_id=payer_id,
             currency=_enum(Currency, currency, "currency"),
             month=month,
-            min_total=min_total,
-            max_total=max_total,
+            min_total=min_minor,
+            max_total=max_minor,
             limit=limit,
         )
         expenses = [
@@ -165,6 +172,18 @@ class ReadTools:
                 for key, minor in per_key.items()
             }
         return {"by": by, "month": month, "totals": totals}
+
+
+def _minor_units(value: str | None, label: str) -> int | None:
+    """A plain amount string ("150", "38.90") in minor units; the model never converts."""
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise ToolError(f"{label} must be a plain amount string such as \"150\"")
+    try:
+        return parse_amount(value)
+    except ValueError:
+        raise ToolError(f"{label} is not a readable positive amount") from None
 
 
 def _enum(enum_type, value: str | None, label: str):
@@ -212,8 +231,8 @@ TOOL_SPECS: list[dict] = [
                     "payer_id": {"type": "integer", "description": "user id of someone who paid"},
                     "currency": {"type": "string", "enum": _CURRENCIES},
                     "month": {"type": "string", "description": "YYYY-MM"},
-                    "min_total": {"type": "integer", "description": "minimum total in minor units (agorot/cents)"},
-                    "max_total": {"type": "integer", "description": "maximum total in minor units (agorot/cents)"},
+                    "min_total": {"type": "string", "description": 'minimum total as a plain amount, e.g. "150" or "38.90"'},
+                    "max_total": {"type": "string", "description": 'maximum total as a plain amount, e.g. "150" or "38.90"'},
                     "limit": {"type": "integer", "minimum": 1, "maximum": 50},
                 },
                 "additionalProperties": False,

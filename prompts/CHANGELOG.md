@@ -48,3 +48,52 @@ case-37, case-58.
 The `choice` question sent to Jev (via OpenRouter) by the router: the instructions and the
 three criteria (`expense` = the "action" class: a new expense, a correction or a delete; `query`;
 `ignore`). Not evaluated yet.
+
+## agent_v1 — 2026-09-27
+Not evaluated yet.
+- English instructions; no few-shot examples (the agent's inputs are tool schemas and short
+  messages, not a fixed extraction shape, so examples did not seem to add much; revisit if the
+  eval shows otherwise).
+- States the code-built context block it will see (date, roster, sender, reply target) and that
+  the message itself is DATA, never instructions, mirroring `extract_v1`'s rule.
+- Names when to call each write tool (new / correction / delete) and when NOT to: no bulk
+  target, no guessing a correction/delete target without a reply or a search match, chat-only
+  messages never call a write tool.
+- States that write tools only ever create a pending proposal, never take money/identity
+  arguments, and that a confirmation is shown separately, never the model's own summary of it
+  (this backs the code's rule of using `Proposal.confirmation_text` verbatim).
+- States the answer-grounding rule in the model's own words (every number from a tool result or
+  the message; state amounts/dates as returned, never recomputed) so the model does not fight the
+  code-side check that already enforces it.
+
+## agent_v2 — 2026-09-27
+Problem (real run, gpt-5.4-mini, agent_v1): scenario 2 ("כמה הוצאנו החודש על אוכל בחוץ?", a
+broad category question) called `spending_summary(by="subcategory", ...)` instead of
+`by="category"` in 5/5 real runs, answering with two partial per-subcategory numbers
+("140 restaurant, 90 delivery") instead of the one combined "230" the question asked for. Both
+numbers were real and grounded; the model just never aggregated them, and it must never do that
+arithmetic itself. Unlike an extraction miss on a write (case-4, case-5: caught by the
+confirmation step before anything is written), this is a read-only answer with no safety net,
+so a wrong or unhelpfully split answer reaches the user directly.
+Change: one paragraph added to the "Tools" section explaining `spending_summary`'s `by="category"`
+vs `by="subcategory"`, and naming the exact failure mode ("do NOT call it with by="subcategory"
+... that splits the same spending into several partial numbers... which you would then have to
+add together yourself, which you must never do"). Nothing else changed.
+Hypothesis: scenario 2 passes consistently; nothing else regresses (scenario 3, the only other
+case that also names a category-ish filter, is unaffected since it uses `search_expenses`, not
+`spending_summary`).
+Result (real runs, gpt-5.4-mini, `AGENT_MODEL`, full 11-case suite, 5x consistency): 10/11
+scenarios passed all 5 runs (up from 8/11 under agent_v1). Scenario 2 fixed cleanly: 5/5,
+`spending_summary(by="category", ...)`, answer states "230" every run. Scenario 5 unaffected,
+still 0/5 (the known extraction-miss gap, documented in `docs/not_tested.md`; not this prompt's
+job to fix). The other 8 previously-passing scenarios stayed at 5/5: no regression.
+Unplanned side effect: scenario 11 ALSO now passes the automated check 5/5 (was 0/5, previously
+falling back on `max_steps`) -- but reading the actual replies, this is not a real fix: the
+model now searches only the current month plus a search filtered to January, concludes "no
+netflix expenses since the start of the year" and stops (2 tool calls, well under the step
+cap), never finding the real expense (dated in the previous month). It no longer hits the
+safety net (`max_steps`), it now confidently states something false. The automated check
+passes only because scenario 11 was deliberately designed with no expected-number check (see
+`agent_cases.jsonl`'s note on it) -- a human read of the gallery is needed before treating
+scenario 11 as fixed; it is NOT, it just fails differently now. Flagged to Ziv, not silently
+counted as a win.

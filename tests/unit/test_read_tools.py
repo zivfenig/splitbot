@@ -223,9 +223,9 @@ def test_read_tools_answer_from_the_ledger_only_and_never_show_another_chat():
         ({"payer_id": 3}, ["Weekly groceries", "Hotel"]),
         ({"currency": "USD"}, ["Hotel", "Sushi in NYC"]),
         ({"month": "2026-09"}, ["Electricity", "Weekly groceries", "Pizza delivery", "Hotel"]),
-        ({"min_total": 8000}, ["Electricity", "Pizza delivery", "Hotel", "Sushi dinner"]),  # 8000 itself counts
-        ({"max_total": 6000}, ["Weekly groceries", "Sushi in NYC"]),  # 6000 itself counts
-        ({"min_total": 6000, "max_total": 8000}, ["Weekly groceries", "Pizza delivery"]),
+        ({"min_total": "80"}, ["Electricity", "Pizza delivery", "Hotel", "Sushi dinner"]),  # 8000 itself counts
+        ({"max_total": "60"}, ["Weekly groceries", "Sushi in NYC"]),  # 6000 itself counts
+        ({"min_total": "60", "max_total": "80"}, ["Weekly groceries", "Pizza delivery"]),
         ({"category": "eating_out", "currency": "ILS"}, ["Pizza delivery", "Sushi dinner"]),  # filters are ANDed
         ({"limit": 2}, ["Electricity", "Weekly groceries"]),
         ({"limit": 50}, None),  # the top of the range is allowed
@@ -240,7 +240,7 @@ def test_read_tools_answer_from_the_ledger_only_and_never_show_another_chat():
             assert found["count"] == len(found["expenses"]), kwargs
 
     # invisible: pending / rejected / expired / deleted (huge totals) and another chat's expense
-    assert tools.search_expenses(min_total=50000)["count"] == 0
+    assert tools.search_expenses(min_total="500")["count"] == 0
     assert tools.search_expenses(text="elsewhere")["count"] == 0
     elsewhere = ReadTools(store, OTHER_CHAT, MEMBERS).search_expenses()
     assert _names(elsewhere) == ["Sushi elsewhere"]
@@ -324,3 +324,40 @@ def test_payers_with_the_same_name_keep_separate_totals():
     assert _flat(summary["totals"]) == {
         "ILS": {"Ann": ("50", 5000), "דני (2)": ("10", 1000), "דני (5)": ("20", 2000)},
     }
+
+
+def _totals_ledger(*totals):
+    store = Store(":memory:")
+    for i, total in enumerate(totals):
+        _seed(store, f"E{total}", total, Currency.ILS, Subcategory.other, {ANN: total}, {ANN: total}, date(2026, 9, 1 + i))
+    return store
+
+
+def test_search_amount_filters_take_plain_amount_strings_and_convert_in_code():
+    tools = ReadTools(_totals_ledger(15000, 14999, 3890, 3891), CHAT, MEMBERS)
+
+    def found(**kwargs):
+        return sorted(e["total_minor"] for e in tools.search_expenses(**kwargs)["expenses"])
+
+    assert found(min_total="150") == [15000]  # 150 = 15000 minor units, inclusive; 14999 is out
+    assert found(max_total="38.90") == [3890]  # inclusive; 3891 is out
+    assert found(min_total="38.90", max_total="150") == [3890, 3891, 14999, 15000]  # both bounds inclusive
+    assert found(min_total="38.91", max_total="149.99") == [3891, 14999]  # min and max together, edges in
+    assert found(min_total="150", max_total="150") == [15000]
+
+    search_spec = next(s for s in TOOL_SPECS if s["function"]["name"] == "search_expenses")
+    properties = search_spec["function"]["parameters"]["properties"]
+    assert properties["min_total"]["type"] == "string"
+    assert properties["max_total"]["type"] == "string"
+
+
+@pytest.mark.parametrize("bad", ["abc", "-5", "0", "1.200", "", 15000])
+@pytest.mark.parametrize("argument", ["min_total", "max_total"])
+def test_search_rejects_unreadable_or_ambiguous_amount_filters(argument, bad):
+    store = _totals_ledger(15000)
+    searched = []
+    real_search = store.search_expenses
+    store.search_expenses = lambda *a, **k: searched.append(1) or real_search(*a, **k)
+    with pytest.raises(ToolError):
+        ReadTools(store, CHAT, MEMBERS).search_expenses(**{argument: bad})
+    assert searched == []  # rejected before the ledger is touched

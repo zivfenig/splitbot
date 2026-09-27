@@ -7,9 +7,11 @@ One connection per Store, used from one thread; concurrent writers use one Store
 database file. Concurrency rules: the database runs in WAL mode with a busy timeout (default
 5000 ms) so writers queue instead of failing with "database is locked"; every write happens in a
 `BEGIN IMMEDIATE` transaction (the write lock is taken BEFORE anything is read), and every state
-change is additionally compare-and-swap (`... WHERE state = <state we read>`, and for change
-requests also a version counter): a write based on a stale read raises StateConflict and stores
-nothing, it never silently overwrites someone else's change. Idempotency per (chat_id,
+change is additionally compare-and-swap (`... WHERE state = <state we read>`, and for both
+expenses and change requests also a version counter): a write based on a stale read raises
+StateConflict and stores nothing, it never silently overwrites someone else's change. A pending
+expense can also be REVISED in place (`revise_pending_expense`, for a free-text correction before
+it is ever confirmed), with the same state+version compare-and-swap. Idempotency per (chat_id,
 message_id) is enforced by the database itself: every record (an expense OR a change request) also
 writes ONE row into `message_records` with PRIMARY KEY (chat_id, message_id), so one message can never
 produce both an expense and a change request, even from two threads at once.
@@ -20,7 +22,7 @@ If COMMIT itself fails, the transaction is rolled back and the Store stays usabl
 import sqlite3
 from contextlib import contextmanager
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Literal
 
 from splitbot.models import (
@@ -51,6 +53,7 @@ CREATE TABLE IF NOT EXISTS expenses (
     chat_id    INTEGER NOT NULL,
     message_id INTEGER NOT NULL,
     state      TEXT NOT NULL,
+    version    INTEGER NOT NULL DEFAULT 0,
     deleted    INTEGER NOT NULL DEFAULT 0,
     data       TEXT NOT NULL,
     UNIQUE (chat_id, message_id)
@@ -146,15 +149,16 @@ class Store:
     # --- expenses -----------------------------------------------------------
 
     def save_expense(self, expense: Expense) -> Expense:
-        """Insert the expense (state as given, normally pending_confirmation) and mark its message
-        processed in ONE transaction. Returns it with its `id`. A second expense for the same
-        (chat_id, message_id) raises DuplicateMessage and changes nothing."""
+        """Insert the expense (state as given, normally pending_confirmation, version 0) and mark
+        its message processed in ONE transaction. Returns it with its `id`. A second expense for
+        the same (chat_id, message_id) raises DuplicateMessage and changes nothing."""
+        expense = expense.model_copy(update={"version": 0})
         try:
             with self._tx():
                 self._mark(expense.chat_id, expense.message_id)
                 self._record(expense.chat_id, expense.message_id, "expense")
                 cursor = self._db.execute(
-                    "INSERT INTO expenses (chat_id, message_id, state, deleted, data) VALUES (?, ?, ?, ?, ?)",
+                    "INSERT INTO expenses (chat_id, message_id, state, version, deleted, data) VALUES (?, ?, ?, 0, ?, ?)",
                     (expense.chat_id, expense.message_id, expense.state.value, int(expense.deleted),
                      expense.model_dump_json(exclude={"id"})),
                 )
@@ -165,7 +169,7 @@ class Store:
     def get_expense(self, expense_id: int) -> Expense:
         """The stored expense, including soft-deleted ones (`deleted=True`). Unknown id -> KeyError."""
         row = self._db.execute(
-            "SELECT id, state, deleted, data FROM expenses WHERE id = ?", (expense_id,)
+            "SELECT id, state, version, deleted, data FROM expenses WHERE id = ?", (expense_id,)
         ).fetchone()
         if row is None:
             raise KeyError(f"no expense {expense_id}")
@@ -173,26 +177,71 @@ class Store:
 
     def set_state(self, expense_id: int, new_state: ExpenseState) -> Expense:
         """Move an expense through the state machine (`state.transition`; illegal -> IllegalTransition).
-        The write happens only if the state is still what was read (compare-and-swap): otherwise
-        StateConflict. Returns the updated expense."""
+        The write happens only if the state AND version are still what was read (compare-and-swap):
+        otherwise StateConflict. Returns the updated expense (version bumped by one)."""
         with self._tx():
             current = self.get_expense(expense_id)
             new_state = transition(current.state, new_state)
             cursor = self._db.execute(
-                "UPDATE expenses SET state = ? WHERE id = ? AND state = ?",
-                (new_state.value, expense_id, current.state.value),
+                "UPDATE expenses SET state = ?, version = version + 1 WHERE id = ? AND state = ? AND version = ?",
+                (new_state.value, expense_id, current.state.value, current.version),
             )
             if cursor.rowcount != 1:
                 raise StateConflict(f"expense {expense_id} changed while we were updating it")
-        return current.model_copy(update={"state": new_state})
+        return current.model_copy(update={"state": new_state, "version": current.version + 1})
 
     def get_expense_by_message(self, chat_id: int, message_id: int) -> Expense | None:
         """The expense created from this (chat_id, message_id), or None."""
         row = self._db.execute(
-            "SELECT id, state, deleted, data FROM expenses WHERE chat_id = ? AND message_id = ?",
+            "SELECT id, state, version, deleted, data FROM expenses WHERE chat_id = ? AND message_id = ?",
             (chat_id, message_id),
         ).fetchone()
         return None if row is None else self._to_expense(row)
+
+    def revise_pending_expense(self, expense_id: int, replacement: Expense, *, now: datetime | None = None) -> Expense:
+        """Replace a PENDING expense's own content (amount/currency/payer/participants/shares/
+        subcategory/description/words) with `replacement`, in place: same id, chat_id, message_id
+        and author_id; `created_at` is reset to `now` (or the current wall clock if `now` is
+        None), which RESETS its expiry -- the sender is actively correcting it right now.
+        Compare-and-swap on state AND version (`replacement.version` must equal the currently
+        stored version): a revision based on a stale read raises StateConflict and changes
+        nothing, exactly like a lost-update race between two writers. The expense must still be
+        pending_confirmation, else IllegalTransition (already confirmed/rejected/expired: nothing
+        left to revise). When `now` is given and the CURRENT stored copy has already expired, it
+        is marked expired (committed) and IllegalTransition is raised instead, same rule as
+        `respond_expense`. Returns the updated expense (version bumped by one)."""
+        expired = False
+        with self._tx():
+            current = self.get_expense(expense_id)
+            if current.state == ExpenseState.pending_confirmation and now is not None and is_expired(
+                current.created_at, now
+            ):
+                self._db.execute(
+                    "UPDATE expenses SET state = ? WHERE id = ? AND state = ?",
+                    (ExpenseState.expired.value, expense_id, _PENDING),
+                )
+                expired = True  # committed below; raising here would roll the expiry back
+            else:
+                if current.state != ExpenseState.pending_confirmation:
+                    raise IllegalTransition(f"expense {expense_id} is already {current.state.value}, nothing to revise")
+                if replacement.version != current.version:
+                    raise StateConflict(f"expense {expense_id} changed while we were revising it")
+                updated = replacement.model_copy(update={
+                    "id": expense_id, "chat_id": current.chat_id, "message_id": current.message_id,
+                    "author_id": current.author_id, "state": ExpenseState.pending_confirmation,
+                    "created_at": now or datetime.now(timezone.utc), "version": current.version + 1,
+                    "deleted": False,
+                })
+                cursor = self._db.execute(
+                    "UPDATE expenses SET data = ?, version = version + 1 "
+                    "WHERE id = ? AND state = ? AND version = ?",
+                    (updated.model_dump_json(exclude={"id"}), expense_id, _PENDING, current.version),
+                )
+                if cursor.rowcount != 1:
+                    raise StateConflict(f"expense {expense_id} changed while we were revising it")
+        if expired:
+            raise IllegalTransition(f"expense {expense_id} expired")
+        return updated
 
     def respond_expense(
         self, expense_id: int, user_id: int, approve: bool, now: datetime | None = None
@@ -203,7 +252,10 @@ class Store:
         rejected. One transaction, compare-and-swap: when several answers arrive at once exactly one
         makes the transition and the others get IllegalTransition (or StateConflict). When `now` is
         given and the expense is older than the expiry it is marked expired (committed) and
-        IllegalTransition is raised, even if the sweeper has not run. Returns the updated expense."""
+        IllegalTransition is raised, even if the sweeper has not run. The state write is
+        compare-and-swap on state AND version (the same guard a revision uses), so an answer
+        computed from a stale read (e.g. before a same-moment revision) raises StateConflict
+        instead of silently confirming outdated content. Returns the updated expense."""
         expired = False
         with self._tx():
             expense = self.get_expense(expense_id)
@@ -222,14 +274,14 @@ class Store:
                     expense.state, ExpenseState.confirmed if approve else ExpenseState.rejected
                 )
                 cursor = self._db.execute(
-                    "UPDATE expenses SET state = ? WHERE id = ? AND state = ?",
-                    (new_state.value, expense_id, expense.state.value),
+                    "UPDATE expenses SET state = ?, version = version + 1 WHERE id = ? AND state = ? AND version = ?",
+                    (new_state.value, expense_id, expense.state.value, expense.version),
                 )
                 if cursor.rowcount != 1:
                     raise StateConflict(f"expense {expense_id} changed while we were updating it")
         if expired:
             raise IllegalTransition(f"expense {expense_id} expired")
-        return expense.model_copy(update={"state": new_state})
+        return expense.model_copy(update={"state": new_state, "version": expense.version + 1})
 
     # --- queries (confirmed, not deleted) -------------------------------------
 
@@ -403,7 +455,7 @@ class Store:
         with self._tx():
             for expense in self._all("expenses", _PENDING):
                 if is_expired(expense.created_at, now, expiry) and self._db.execute(
-                    "UPDATE expenses SET state = ? WHERE id = ? AND state = ?",
+                    "UPDATE expenses SET state = ?, version = version + 1 WHERE id = ? AND state = ?",
                     (ExpenseState.expired.value, expense.id, _PENDING),
                 ).rowcount == 1:
                     expired.append(Expired("expense", expense.id, expense.chat_id, expense.message_id))
@@ -431,14 +483,16 @@ class Store:
 
     def _live(self, chat_id: int) -> list[Expense]:
         rows = self._db.execute(
-            "SELECT id, state, deleted, data FROM expenses WHERE chat_id = ? AND state = ? AND deleted = 0 ORDER BY id",
+            "SELECT id, state, version, deleted, data FROM expenses WHERE chat_id = ? AND state = ? AND deleted = 0 ORDER BY id",
             (chat_id, _CONFIRMED),
         ).fetchall()
         return [self._to_expense(r) for r in rows]
 
     def _all(self, table: str, state: str) -> list:
         if table == "expenses":
-            rows = self._db.execute("SELECT id, state, deleted, data FROM expenses WHERE state = ?", (state,)).fetchall()
+            rows = self._db.execute(
+                "SELECT id, state, version, deleted, data FROM expenses WHERE state = ?", (state,)
+            ).fetchall()
             return [self._to_expense(r) for r in rows]
         rows = self._db.execute(
             "SELECT id, state, version, data FROM change_requests WHERE state = ?", (state,)
@@ -449,14 +503,14 @@ class Store:
         """Apply a confirmed change to the ledger. Call inside a transaction: raising here rolls
         it back, so a change is applied exactly once or not at all."""
         target = self._db.execute(
-            "SELECT id, state, deleted, data FROM expenses WHERE id = ? AND state = ? AND deleted = 0",
+            "SELECT id, state, version, deleted, data FROM expenses WHERE id = ? AND state = ? AND deleted = 0",
             (request.expense_id, _CONFIRMED),
         ).fetchone()
         if target is None:
             raise StateConflict(f"expense {request.expense_id} is no longer confirmed and not deleted")
         expense = self._to_expense(target)
         if request.kind == ChangeKind.delete:
-            self._db.execute("UPDATE expenses SET deleted = 1 WHERE id = ?", (expense.id,))
+            self._db.execute("UPDATE expenses SET deleted = 1, version = version + 1 WHERE id = ?", (expense.id,))
             return
         replacement = request.proposed.model_copy(
             update={
@@ -465,10 +519,14 @@ class Store:
                 "message_id": expense.message_id,
                 "created_at": expense.created_at,
                 "state": ExpenseState.confirmed,
+                "version": expense.version + 1,
                 "deleted": False,
             }
         )
-        self._db.execute("UPDATE expenses SET data = ? WHERE id = ?", (replacement.model_dump_json(exclude={"id"}), expense.id))
+        self._db.execute(
+            "UPDATE expenses SET data = ?, version = version + 1 WHERE id = ?",
+            (replacement.model_dump_json(exclude={"id"}), expense.id),
+        )
 
     def _write_request(self, request: ChangeRequest, *, expected_state: str, expected_version: int) -> ChangeRequest:
         """Compare-and-swap on state AND version: a write based on a stale read changes nothing."""
@@ -484,9 +542,9 @@ class Store:
 
     @staticmethod
     def _to_expense(row: tuple) -> Expense:
-        expense_id, state, deleted, data = row
+        expense_id, state, version, deleted, data = row
         return Expense.model_validate_json(data).model_copy(
-            update={"id": expense_id, "state": ExpenseState(state), "deleted": bool(deleted)}
+            update={"id": expense_id, "state": ExpenseState(state), "version": version, "deleted": bool(deleted)}
         )
 
     @staticmethod

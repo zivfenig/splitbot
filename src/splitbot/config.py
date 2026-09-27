@@ -91,6 +91,19 @@ def pending_expiry() -> timedelta:
     return timedelta(hours=_positive_number("PENDING_EXPIRY_HOURS", "1"))
 
 
+def agent_cost_cap() -> Decimal:
+    """The most the agent model calls of ONE turn may cost, in dollars: `AGENT_MAX_COST_USD`, default
+    "0.02". Read at call time. Raises ConfigError when the value is not a positive finite number."""
+    raw = optional("AGENT_MAX_COST_USD", "0.02")
+    try:
+        value = Decimal(raw)
+    except ArithmeticError:
+        raise ConfigError("AGENT_MAX_COST_USD must be a number") from None
+    if not value.is_finite() or value <= 0:
+        raise ConfigError("AGENT_MAX_COST_USD must be a positive number")
+    return value
+
+
 def auto_grace() -> timedelta:
     """`auto` mode's grace window: `AUTO_GRACE_SECONDS` (seconds), default 60. Read at call time.
     Raises ConfigError when the value is not a positive finite number."""

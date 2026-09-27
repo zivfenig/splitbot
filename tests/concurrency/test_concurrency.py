@@ -556,3 +556,91 @@ def test_idempotency_is_enforced_by_the_database_itself(tmp_path):
     store.create_change_request(change(60))
     with pytest.raises(DuplicateMessage):  # message 60 already produced a change request
         store.save_expense(make_expense(60, state=ExpenseState.pending_confirmation))
+
+
+# --- 6. a revision racing a confirmation ------------------------------------------------------
+
+
+def test_a_revision_racing_a_confirmation_never_loses_either_and_only_one_wins(tmp_path):
+    """`respond_expense` re-reads its own state and version FRESH, inside its own `BEGIN
+    IMMEDIATE` transaction (never a caller-supplied version), so under genuine concurrency it can
+    never itself observe an externally-stale version -- that half of the CAS guard is only
+    reachable by artificially forcing a stale read (covered at the Store-unit level, where
+    `respond_expense` is monkeypatched to see a pre-revision copy). A real race between the two
+    therefore has exactly two safe outcomes, decided purely by commit order: the revision lands
+    first and the confirmation then approves that same (now current) revised content -- both
+    calls succeed, nothing is lost; or the confirmation lands first and the revision is cleanly
+    refused (`IllegalTransition`: the target is no longer pending) -- nothing about the confirmed
+    expense is silently changed. Either way, nothing is ever silently lost or corrupted."""
+    path = str(tmp_path / "ledger.db")
+    setup = Store(path)
+    pending = setup.save_expense(make_expense(1, state=ExpenseState.pending_confirmation))
+    revised_content = make_expense(2, total=90000).model_copy(update={"version": pending.version})
+
+    def revise_job(wait):
+        store = Store(path)
+        wait()
+        try:
+            return store.revise_pending_expense(pending.id, revised_content, now=NOW)
+        except Exception as exc:  # noqa: BLE001 - classified below
+            return exc
+
+    def confirm_job(wait):
+        store = Store(path)
+        wait()
+        try:
+            return store.respond_expense(pending.id, pending.author_id, True, now=NOW)
+        except Exception as exc:  # noqa: BLE001 - classified below
+            return exc
+
+    results, errors = run_parallel([revise_job, confirm_job])
+
+    assert errors == [None, None]
+    successes = [r for r in results if not isinstance(r, Exception)]
+    failures = [r for r in results if isinstance(r, Exception)]
+    final = Store(path).get_expense(pending.id)
+
+    if len(successes) == 2:
+        # commit order: revise, then confirm -- the confirmation freezes the freshest content
+        assert failures == []
+        assert final.state == ExpenseState.confirmed
+        assert final.total == revised_content.total
+    else:
+        # commit order: confirm, then revise -- the revision is cleanly refused, nothing silent
+        assert len(successes) == 1 and len(failures) == 1
+        assert isinstance(failures[0], IllegalTransition)
+        assert final.state == ExpenseState.confirmed
+        assert final.total == pending.total  # the original content, never touched by the loser
+    assert final.total in (pending.total, revised_content.total)  # never a corrupted mix of the two
+
+    # NEGATIVE CONTROL: a scratch table with a version column, but NO WHERE-version guard on the
+    # write (a classic read-old-version-then-write-unconditionally lost update). The barrier +
+    # sleep force both threads to read version 0 before either writes, so one write must clobber
+    # the other silently -- both "succeed" (no exception), unlike the real store where exactly one
+    # of the two racing calls above raised StateConflict.
+    scratch = str(tmp_path / "scratch.db")
+    db = sqlite3.connect(scratch)
+    db.execute("CREATE TABLE expenses (id INTEGER PRIMARY KEY, state TEXT, total INTEGER, version INTEGER)")
+    db.execute("INSERT INTO expenses (id, state, total, version) VALUES (1, 'pending', 100, 0)")
+    db.commit()
+    db.close()
+
+    def unprotected(new_state, new_total):
+        def job(wait):
+            conn = sqlite3.connect(scratch)
+            wait()
+            version = conn.execute("SELECT version FROM expenses WHERE id = 1").fetchone()[0]
+            time.sleep(0.02)
+            with conn:
+                conn.execute(
+                    "UPDATE expenses SET state = ?, total = ?, version = ? WHERE id = 1",
+                    (new_state, new_total, version + 1),
+                )
+            conn.close()
+
+        return job
+
+    _, control_errors = run_parallel([unprotected("pending", 900), unprotected("confirmed", 100)])
+    assert control_errors == [None, None]  # neither writer was ever told to reload and retry
+    row = sqlite3.connect(scratch).execute("SELECT version FROM expenses WHERE id = 1").fetchone()
+    assert row[0] == 1  # both "succeeded", but one writer's update was silently lost

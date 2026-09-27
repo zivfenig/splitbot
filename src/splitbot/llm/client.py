@@ -1,5 +1,6 @@
 """Thin wrapper around the OpenAI chat API. No prompts live here (they are in prompts/)."""
 
+import json
 import math
 import time
 from dataclasses import dataclass
@@ -30,8 +31,37 @@ class LLMResult:
     cached_tokens: int | None = None  # input tokens served from the prompt cache; None when not reported
 
 
+@dataclass(frozen=True)
+class ToolCall:
+    id: str  # the model's tool-call id (echoed back in the tool message)
+    name: str
+    arguments: dict  # parsed JSON object; never a string
+
+
+@dataclass(frozen=True)
+class ChatResult:
+    """One assistant turn of a tool-calling conversation."""
+
+    content: str | None  # the text the model wrote; None when it only called tools
+    tool_calls: tuple[ToolCall, ...]  # empty when the model answered in text
+    message: dict  # the assistant message in OpenAI format, to append to the history as it is
+    model: str
+    temperature: float
+    input_tokens: int
+    output_tokens: int
+    latency_s: float
+    cost_usd: Decimal | None
+    cached_tokens: int | None = None
+
+
 class LLMClient(Protocol):
     def complete(self, system: str, user: str) -> LLMResult: ...
+
+
+class ChatLLM(Protocol):
+    """What the agent loop needs: one tool-calling turn."""
+
+    def chat(self, messages: list[dict], tools: list[dict]) -> ChatResult: ...
 
 
 class OpenAIClient:
@@ -160,6 +190,87 @@ class OpenAIClient:
             latency_s=latency_s,
             cost_usd=self._cost(input_tokens, output_tokens),
             cached_tokens=cached_tokens,
+        )
+
+    def chat(self, messages: list[dict], tools: list[dict]) -> ChatResult:
+        """One tool-calling turn. Calls exactly once:
+            sdk.chat.completions.create(
+                model=<model>, temperature=<temperature>, timeout=<timeout_s>,
+                max_completion_tokens=<max_output_tokens>,
+                messages=messages, tools=tools, tool_choice="auto")
+        (no `response_format`; `tools` and `tool_choice` are left out when `tools` is empty). The
+        messages are sent as given: the caller keeps user text in "user" messages only.
+        From `response.choices[0].message` it reads `content` and `tool_calls` (each
+        `.id`, `.function.name`, `.function.arguments` = a JSON string that must parse to a JSON
+        OBJECT, giving `ToolCall.arguments`); `ChatResult.message` is
+        {"role": "assistant", "content": <content or None>} plus, when there are tool calls,
+        "tool_calls": [{"id", "type": "function", "function": {"name", "arguments": <the original
+        JSON string>}}]. Tokens, latency, cached tokens and cost are computed exactly as in
+        `complete`.
+
+        Raises LLMError when: the SDK raises any `openai.OpenAIError`; `response.choices` is empty;
+        `response.usage` is None; `finish_reason == "length"`; the message has neither text (after
+        stripping) nor tool calls; or any tool call's arguments are not valid JSON or not a JSON
+        object. Error text never echoes model output or request text."""
+        kwargs = {}
+        if tools:
+            kwargs = {"tools": tools, "tool_choice": "auto"}
+        started = time.perf_counter()
+        try:
+            response = self._sdk.chat.completions.create(
+                model=self.model,
+                temperature=self.temperature,
+                timeout=self.timeout_s,
+                max_completion_tokens=self.max_output_tokens,
+                messages=messages,
+                **kwargs,
+            )
+        except OpenAIError as exc:
+            raise LLMError(f"OpenAI call failed: {type(exc).__name__}") from exc
+        latency_s = time.perf_counter() - started
+
+        if not response.choices:
+            raise LLMError("the reply had no choices")
+        if response.usage is None:
+            raise LLMError("the reply had no token usage")
+        choice = response.choices[0]
+        if choice.finish_reason == "length":
+            raise LLMError("the reply was cut off (finish_reason=length)")
+        content = choice.message.content
+        raw_calls = getattr(choice.message, "tool_calls", None) or []
+        if not raw_calls and (content is None or not content.strip()):
+            raise LLMError("the reply had neither text nor tool calls")
+
+        tool_calls = []
+        message: dict = {"role": "assistant", "content": content}
+        for raw in raw_calls:
+            try:
+                arguments = json.loads(raw.function.arguments)
+            except (TypeError, ValueError):
+                raise LLMError("a tool call's arguments were not valid JSON") from None
+            if not isinstance(arguments, dict):
+                raise LLMError("a tool call's arguments were not a JSON object")
+            tool_calls.append(ToolCall(id=raw.id, name=raw.function.name, arguments=arguments))
+        if raw_calls:
+            message["tool_calls"] = [
+                {"id": raw.id, "type": "function", "function": {"name": raw.function.name, "arguments": raw.function.arguments}}
+                for raw in raw_calls
+            ]
+
+        input_tokens = response.usage.prompt_tokens
+        output_tokens = response.usage.completion_tokens
+        details = getattr(response.usage, "prompt_tokens_details", None)
+        return ChatResult(
+            content=content if content is not None and content.strip() else None,
+            tool_calls=tuple(tool_calls),
+            message=message,
+            model=self.model,
+            temperature=self.temperature,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            latency_s=latency_s,
+            cost_usd=self._cost(input_tokens, output_tokens),
+            cached_tokens=getattr(details, "cached_tokens", None) if details is not None else None,
         )
 
     def _cost(self, input_tokens: int, output_tokens: int) -> Decimal | None:

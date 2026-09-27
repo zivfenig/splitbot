@@ -17,6 +17,12 @@ A stage is done only when *I* verified it (not when tests are green).
   official test-set numbers recorded in `results/` and DECISIONS.md.
 - **Stage C (done):** Jev is the bot's router (0% missed expense on test, AUC 0.984); the
   embedding router stays in the repo as the documented baseline.
+- **Stage D (done, 2026-09-27):** read/write ledger tools; every write goes through
+  extractor → validators → confirmation → ledger, with a shared (chat_id, message_id)
+  idempotency key; the store runs in WAL mode with compare-and-swap/`BEGIN IMMEDIATE` on every
+  state transition; all 4 concurrency tests pass with negative controls, and the negative-control
+  sweep itself is a rerunnable script (`scripts/verify_concurrency_negative_controls.py`), not
+  just a one-time claim.
 
 ---
 
@@ -58,7 +64,7 @@ I verify: `pytest` green, test names read like rules, smoke outputs.
     cost, latency (p50/p95); per-message scores saved
 - Result: Jev is the bot's router; the embedding router stays as the documented baseline.
 
-## Stage D: Ledger tools + concurrency (~1.5h)
+## Stage D (done): Ledger tools + concurrency (~1.5h)
 - Read tools: `get_balances` (per currency, a small set of settlement transfers computed in code),
   `search_expenses`, `spending_summary` (category / month / payer).
 - Write tools: `propose_expense`, `propose_correction`, `propose_delete`: always run

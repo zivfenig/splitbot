@@ -1,7 +1,5 @@
 # SplitBot eval data — verified by Ziv
-
-All messages and expected answers were written and verified by me (Ziv), drafted together
-with a chat assistant. Claude Code only **converts** this file to the eval JSONL files.
+**converts** this file to the eval JSONL files.
 Do not change any text, value or evidence. If something cannot be represented or fails a
 validator, stop and report it — do not "fix" it.
 

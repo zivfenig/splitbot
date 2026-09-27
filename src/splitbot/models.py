@@ -205,6 +205,7 @@ class Expense(BaseModel):
     spent_on: date
     created_at: datetime = Field(default_factory=_utc_now)  # timezone-aware, for the 48h expiry
     state: ExpenseState = ExpenseState.pending_confirmation
+    version: int = 0  # managed by the store: bumped on every write while pending, used for compare-and-swap
     deleted: bool = False  # soft delete: the row stays, but no balance/search/summary counts it
     words: str | None = None  # the words the amount was written in, when the LLM converted it
 

@@ -20,6 +20,13 @@ load testing over HTTP.
   amount** ("1.200", case-36: asked in 3/3 runs with v1, 0/3 with v2). No further prompt round;
   the unconditional confirmation shows the exact number before anything is stored, so a human
   catches it.
+- **The extractor can drop the sender from participants** in a message like "הזמנתי סושי לי
+  ולדני, יצא 120" ("sushi for me and Dani"), attributing the whole amount to the other person
+  instead of splitting it (agent eval scenario 5, gpt-5.4-mini, real run 2026-09-27, 0/5).
+  Same reasoning as the earlier gpt-4o-mini extraction miss (case-4): the confirmation shows
+  the exact split before anything is written, so the sender sees the wrong split and can
+  correct or reject it. No code fix; not evidence of a specific model being worse, just the
+  same known class of extraction miss.
 - **A settlement is read as a new expense** ("העברתי לך 50 בביט", case-25, by every model
   tried). Settlements between members are out of scope; the confirmation shows the number and
   the user rejects it.
@@ -27,6 +34,13 @@ load testing over HTTP.
 - **Participants have ONE evidence string for the whole field, not one per member**, so a
   person wrongly added to `only` or `exclude` can still pass grounding (the evidence exists,
   it just does not cover that person).
+- **The agent can only answer a "since X" / multi-month range question by calling
+  `spending_summary` one calendar month at a time** (it has no single "date range" tool), so a
+  range longer than about `MAX_STEPS` (5) months back cannot be answered at all: it correctly
+  falls back rather than guessing (agent eval scenario 11, gpt-5.4-mini, real run 2026-09-27:
+  hit `max_steps` after querying January through May trying to reach "since the start of the
+  year"). Accepted for now; a future prompt or tool change could teach it to call
+  `spending_summary` with no month filter for an all-time total in one call instead.
 
 ## Handled by the workflow (see PLAN.md, Stage F), not by the validators
 - A `new` expense with a missing amount or other required field is not flagged by the
@@ -35,6 +49,11 @@ load testing over HTTP.
   it as "everyone" or ask.
 - The same member twice in exact amounts is not detected; the workflow must ask.
 - A default payer is only checked against the author when the workflow passes `author_id`.
+
+- **The agent's per-turn cost cap counts only the agent model's own calls**, not the extractor
+  call a write tool makes underneath it. Accepted: the extractor call is a small, fixed-size
+  request next to the $0.02 default cap, and it is already capped separately by its own retry
+  limit.
 
 ## Not covered by tests
 - Amount-text edge cases: leading zeros ("007"), surrounding whitespace, Unicode digits

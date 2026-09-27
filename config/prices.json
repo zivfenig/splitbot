@@ -5,6 +5,7 @@
   "models": {
     "gpt-4o-mini": {"in": 0.15, "out": 0.60},
     "gpt-4o": {"in": 2.50, "out": 10.00},
+    "gpt-5.4-mini": {"in": 0.2, "out": 1.25},
     "text-embedding-3-small": {"in": 0.02, "out": 0},
     "typesafe/jev-1.13": {"in": 0.042, "out": 0}
   }

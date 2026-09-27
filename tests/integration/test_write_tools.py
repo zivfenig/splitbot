@@ -15,8 +15,22 @@ import pytest
 
 from splitbot.config import ConfigError
 from splitbot.llm.client import LLMError
-from splitbot.models import ApprovalMode, ChangeKind, Currency, Expense, ExpenseState, GroupConfig, Member, Share, Subcategory
+from splitbot.models import (
+    ApprovalMode,
+    ApprovalRule,
+    Category,
+    ChangeKind,
+    Confidence,
+    Currency,
+    Expense,
+    ExpenseState,
+    GroupConfig,
+    Member,
+    Share,
+    Subcategory,
+)
 from splitbot.money import display_amount
+from splitbot.policy import required_approval
 from splitbot.state import IllegalTransition
 from splitbot.store import NotRelevantApprover, Store
 from splitbot.tools.write_tools import WriteTools
@@ -841,3 +855,299 @@ _TEST3_SCENARIOS = [
 @pytest.mark.parametrize("scenario", _TEST3_SCENARIOS)
 def test_propose_correction_and_delete_need_a_known_target_and_all_relevant_approvers(scenario):
     scenario()
+
+
+# --- test 4: revise_pending (free-text correction of a PENDING expense) ------------------------
+
+_FOUR_EQUAL = [
+    Share(user_id=1, paid=12000, owed=3000),
+    Share(user_id=2, paid=0, owed=3000),
+    Share(user_id=3, paid=0, owed=3000),
+    Share(user_id=4, paid=0, owed=3000),
+]
+
+
+def _seed_pending(store, message_id, shares, *, chat_id=CHAT, description="פיצה",
+                   subcategory=Subcategory.restaurant, author_id=1, created_at=None) -> int:
+    total = sum(s.paid for s in shares)
+    saved = store.save_expense(
+        Expense(
+            chat_id=chat_id, message_id=message_id, author_id=author_id, description=description, total=total,
+            currency=Currency.ILS, subcategory=subcategory, shares=shares, prompt_version="extract_v2",
+            spent_on=date(2026, 2, 20), created_at=created_at or NOW, state=ExpenseState.pending_confirmation,
+        )
+    )
+    return saved.id
+
+
+class _RacingLLM:
+    """Behaves like FakeLLM, but runs `interfere()` once, the first time `complete` is called:
+    simulates a second writer landing in the window between the extractor call returning and this
+    call's own store write -- exactly where a real network round trip would leave that window
+    open."""
+
+    def __init__(self, replies, interfere):
+        self._inner = FakeLLM(replies)
+        self._interfere = interfere
+        self.calls = self._inner.calls
+
+    def complete(self, system, user):
+        if self._interfere is not None:
+            self._interfere()
+            self._interfere = None
+        return self._inner.complete(system, user)
+
+
+def _revise_amount_only_correction():
+    """"זה היה 100 ולא 120": only the amount is mentioned. Participants and payer must survive."""
+    store, llm, tools = _make([_reply("correction", amount="100")])
+    pending_id = _seed_pending(store, 1, _FOUR_EQUAL)
+
+    p = tools.revise_pending(chat_id=CHAT, message_id=50, sender_id=1, text="זה היה 100 ולא 120",
+                              target_expense_id=pending_id)
+
+    assert p.status == "pending_confirmation"
+    assert p.expense_id == pending_id
+    revised = store.get_expense(pending_id)
+    assert revised.total == 10000
+    assert _shares(revised) == {1: (10000, 2500), 2: (0, 2500), 3: (0, 2500), 4: (0, 2500)}
+    assert {s.user_id for s in revised.shares if s.owed > 0} == {1, 2, 3, 4}  # participants unchanged
+    assert [s.user_id for s in revised.shares if s.paid > 0] == [1]  # payer unchanged
+    assert revised.state == ExpenseState.pending_confirmation
+    assert p.confirmation_text and "100" in p.confirmation_text and p.confirmation_text.endswith("לאשר?")
+
+
+def _revise_participants_only_correction():
+    """"רק מיכל, זיו ומיכל ביחד": no amount at all. The amount must be carried forward unchanged
+    (this is the case explicitly flagged during design: a correction fragment with no amount must
+    not blank or corrupt the total), only participants change."""
+    text = "רק מיכל, זיו ומיכל ביחד"
+    # The combined restatement+correction call the extractor actually sees restates the CURRENT
+    # amount (120) alongside the correction, so the reply echoes it back unchanged, exactly as it
+    # would from a real combined call (verified empirically per the revise_pending docstring).
+    reply = _reply("correction", amount="120", participants=_with([4], text))
+    store, llm, tools = _make([reply])
+    pending_id = _seed_pending(store, 1, _FOUR_EQUAL)
+
+    p = tools.revise_pending(chat_id=CHAT, message_id=50, sender_id=1, text=text, target_expense_id=pending_id)
+
+    assert p.status == "pending_confirmation"
+    revised = store.get_expense(pending_id)
+    assert revised.total == 12000  # unchanged: never blanked or corrupted by the amount-less correction
+    assert {s.user_id for s in revised.shares if s.owed > 0} == {1, 4}  # זיו ומיכל
+    assert [s.user_id for s in revised.shares if s.paid > 0] == [1]  # payer unchanged
+
+
+def _revise_payer_only_correction():
+    """"שילם דני, לא אני": only the payer is mentioned. Amount and participants must survive."""
+    text = "שילם דני, לא אני"
+    payer = {"value": {"kind": "known", "id": 2}, "evidence": "שילם דני", "source": "message"}
+    reply = _reply("correction", amount="120", payer=payer)
+    store, llm, tools = _make([reply])
+    pending_id = _seed_pending(store, 1, _FOUR_EQUAL)
+
+    p = tools.revise_pending(chat_id=CHAT, message_id=50, sender_id=1, text=text, target_expense_id=pending_id)
+
+    assert p.status == "pending_confirmation"
+    revised = store.get_expense(pending_id)
+    assert revised.total == 12000  # unchanged
+    assert {s.user_id for s in revised.shares if s.owed > 0} == {1, 2, 3, 4}  # unchanged
+    assert [s.user_id for s in revised.shares if s.paid > 0] == [2]  # payer changed to דני
+
+
+_TEST4_HAPPY_SCENARIOS = [
+    pytest.param(_revise_amount_only_correction, id="amount-only-correction-keeps-participants-and-payer"),
+    pytest.param(_revise_participants_only_correction, id="participants-only-correction-keeps-the-amount"),
+    pytest.param(_revise_payer_only_correction, id="payer-only-correction-keeps-amount-and-participants"),
+]
+
+
+@pytest.mark.parametrize("scenario", _TEST4_HAPPY_SCENARIOS)
+def test_revise_pending_applies_a_free_text_correction_and_keeps_everything_else(scenario):
+    scenario()
+
+
+def test_revise_pending_requires_a_reply_reply_target_is_the_only_way_to_name_the_target():
+    store, llm, tools = _make([])
+    pending_id = _seed_pending(store, 1, _FOUR_EQUAL)
+
+    p = tools.revise_pending(chat_id=CHAT, message_id=50, sender_id=1, text="זה היה 100 ולא 120",
+                              target_expense_id=None)
+
+    assert p.status == "needs_clarification"
+    assert p.issues
+    assert llm.calls == []
+    assert store.is_processed(CHAT, 50)
+    assert store.get_expense(pending_id).version == 0  # untouched
+
+
+def test_revise_pending_only_the_original_author_may_revise_their_own_pending_expense():
+    store, llm, tools = _make([])
+    pending_id = _seed_pending(store, 1, _FOUR_EQUAL, author_id=1)
+
+    p = tools.revise_pending(chat_id=CHAT, message_id=50, sender_id=2, text="זה היה 100 ולא 120",
+                              target_expense_id=pending_id)
+
+    assert p.status == "needs_clarification"
+    assert p.issues
+    assert llm.calls == []  # the author check happens before any extractor call
+    assert store.is_processed(CHAT, 50)
+    unchanged = store.get_expense(pending_id)
+    assert unchanged.version == 0 and unchanged.total == 12000
+
+
+def _confirmed_target(store):
+    pid = _seed_pending(store, 1, _FOUR_EQUAL)
+    store.set_state(pid, ExpenseState.confirmed)
+    return pid
+
+
+def _rejected_target(store):
+    pid = _seed_pending(store, 1, _FOUR_EQUAL)
+    store.respond_expense(pid, 1, False)
+    return pid
+
+
+def _expired_target(store):
+    pid = _seed_pending(store, 1, _FOUR_EQUAL, created_at=NOW - timedelta(hours=2))
+    store.expire_stale(NOW)
+    return pid
+
+
+def _unknown_target(store):
+    return 999999
+
+
+def _other_chat_target(store):
+    return _seed_pending(store, 1, _FOUR_EQUAL, chat_id=999)
+
+
+_NOT_PENDING_TARGETS = [
+    pytest.param(_unknown_target, id="unknown-id"),
+    pytest.param(_confirmed_target, id="already-confirmed"),
+    pytest.param(_rejected_target, id="already-rejected"),
+    pytest.param(_expired_target, id="already-expired"),
+    pytest.param(_other_chat_target, id="wrong-chat"),
+]
+
+
+@pytest.mark.parametrize("build_target", _NOT_PENDING_TARGETS)
+def test_revise_pending_refuses_a_target_that_is_not_pending(build_target):
+    store, llm, tools = _make([])
+    target_id = build_target(store)
+
+    p = tools.revise_pending(chat_id=CHAT, message_id=50, sender_id=1, text="זה היה 100 ולא 120",
+                              target_expense_id=target_id)
+
+    assert p.status == "needs_clarification"
+    assert p.issues
+    assert llm.calls == []
+    assert store.is_processed(CHAT, 50)
+
+
+@pytest.mark.parametrize(
+    "reply", [_reply("chat", amount=None), _reply("new", amount="50")],
+    ids=["message-type-chat", "message-type-new"],
+)
+def test_revise_pending_extraction_not_classified_as_correction_leaves_the_pending_record_untouched(reply):
+    store, llm, tools = _make([reply])
+    pending_id = _seed_pending(store, 1, _FOUR_EQUAL)
+    before = store.get_expense(pending_id)
+
+    p = tools.revise_pending(chat_id=CHAT, message_id=50, sender_id=1, text="מה נשמע", target_expense_id=pending_id)
+
+    assert p.status == "needs_clarification"
+    assert p.issues
+    assert len(llm.calls) == 1
+    after = store.get_expense(pending_id)
+    assert after == before  # identical content, version and expiry
+    assert store.is_processed(CHAT, 50)
+
+
+def test_revise_pending_is_idempotent_per_message():
+    store, llm, tools = _make([_reply("correction", amount="100")])
+    pending_id = _seed_pending(store, 1, _FOUR_EQUAL)
+    text = "זה היה 100 ולא 120"
+
+    first = tools.revise_pending(chat_id=CHAT, message_id=50, sender_id=1, text=text, target_expense_id=pending_id)
+    assert first.status == "pending_confirmation"
+    revised_once = store.get_expense(pending_id)
+
+    again = tools.revise_pending(chat_id=CHAT, message_id=50, sender_id=1, text=text, target_expense_id=pending_id)
+
+    assert again.status == "duplicate"
+    assert len(llm.calls) == 1  # no second LLM call
+    assert store.get_expense(pending_id) == revised_once  # no second write
+
+
+def test_revise_pending_recomputes_the_approval_mode():
+    config = GroupConfig(
+        chat_id=CHAT, members=MEMBERS, default_mode=ApprovalMode.auto,
+        rules=[ApprovalRule(mode=ApprovalMode.author, category=Category.eating_out, min_amount=20000)],
+    )
+    store = Store(":memory:")
+    llm = FakeLLM([_reply("correction", amount="250")])
+    tools = WriteTools(store, llm, MEMBERS, config, prompt_version="extract_v2", clock=lambda: NOW)
+    pending_id = _seed_pending(store, 1, _FOUR_EQUAL)  # 120 ILS: below the 200 ILS threshold
+    assert required_approval(config, category=Category.eating_out, total=12000, currency=Currency.ILS,
+                              confidence=Confidence.high) == ApprovalMode.auto  # the original mode
+
+    p = tools.revise_pending(chat_id=CHAT, message_id=50, sender_id=1, text="זה היה 250 ולא 120",
+                              target_expense_id=pending_id)
+
+    assert p.status == "pending_confirmation"
+    assert p.mode == "author"  # the revised total (250) crosses the rule's threshold (200), not "auto"
+
+
+def test_revise_pending_after_expiry_asks_instead_of_applying():
+    clock = _Clock()
+    store, llm, tools = _make([_reply("correction", amount="100")], clock=clock)
+    pending_id = _seed_pending(store, 1, _FOUR_EQUAL, created_at=NOW)
+    clock.now = NOW + timedelta(hours=1)  # exactly the expiry: counts as expired
+
+    p = tools.revise_pending(chat_id=CHAT, message_id=50, sender_id=1, text="זה היה 100 ולא 120",
+                              target_expense_id=pending_id)
+
+    assert p.status == "needs_clarification"
+    assert p.issues
+    assert len(llm.calls) == 1  # the extractor already ran; the expiry is only caught at the store write
+    after = store.get_expense(pending_id)
+    assert after.state == ExpenseState.expired
+    assert after.total == 12000  # never revised
+    assert store.is_processed(CHAT, 50)
+
+
+def test_revise_pending_surfaces_a_racing_store_conflict_as_needs_clarification(tmp_path):
+    """A second writer revises the SAME pending expense in the window between the extractor call
+    returning and this call's own store write (using the extractor call itself as the interleaving
+    point, since that is the one place a real network round trip would leave open). The store-level
+    compare-and-swap this exercises is already covered directly in
+    tests/unit/test_store.py::test_revise_pending_expense_is_compare_and_swap_on_version; this test
+    only checks that WriteTools surfaces the resulting StateConflict as "needs_clarification"
+    instead of crashing or silently overwriting the other writer's change."""
+    path = str(tmp_path / "ledger.db")
+    store_a = Store(path)
+    pending_id = _seed_pending(store_a, 1, _FOUR_EQUAL)
+
+    def race():
+        other = Store(path).get_expense(pending_id)
+        racing_replacement = other.model_copy(update={
+            "total": 30000,
+            "shares": [Share(user_id=1, paid=30000, owed=7500), Share(user_id=2, paid=0, owed=7500),
+                       Share(user_id=3, paid=0, owed=7500), Share(user_id=4, paid=0, owed=7500)],
+        })
+        Store(path).revise_pending_expense(pending_id, racing_replacement, now=NOW)
+
+    llm = _RacingLLM([_reply("correction", amount="100")], interfere=race)
+    store_b = Store(path)
+    config = GroupConfig(chat_id=CHAT, members=MEMBERS, default_mode=ApprovalMode.author)
+    tools = WriteTools(store_b, llm, MEMBERS, config, prompt_version="extract_v2", clock=lambda: NOW)
+
+    p = tools.revise_pending(chat_id=CHAT, message_id=50, sender_id=1, text="זה היה 100 ולא 120",
+                              target_expense_id=pending_id)
+
+    assert p.status == "needs_clarification"
+    assert p.issues
+    final = Store(path).get_expense(pending_id)
+    assert final.total == 30000  # the racing writer's revision was not silently overwritten
+    assert store_b.is_processed(CHAT, 50)
