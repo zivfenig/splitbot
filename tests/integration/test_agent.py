@@ -948,7 +948,7 @@ def test_settlement_tool_description_covers_an_incoming_repayment_without_extra_
         if item["function"]["name"] == "propose_settlement"
     )
     assert "another member repaid the sender" in spec["description"]
-    assert "ירדן החזירה לי 20" in spec["description"]
+    assert "נועה החזירה לי 30" in spec["description"]
 
 
 @pytest.mark.parametrize(

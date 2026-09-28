@@ -78,6 +78,13 @@ CREATE TABLE IF NOT EXISTS pending_edits (
     created_at  TEXT NOT NULL,
     PRIMARY KEY (chat_id, user_id)
 );
+CREATE TABLE IF NOT EXISTS pending_deletes (
+    chat_id     INTEGER NOT NULL,
+    user_id     INTEGER NOT NULL,
+    expense_id  INTEGER NOT NULL,
+    created_at  TEXT NOT NULL,
+    PRIMARY KEY (chat_id, user_id)
+);
 CREATE TABLE IF NOT EXISTS message_records (
     chat_id    INTEGER NOT NULL,
     message_id INTEGER NOT NULL,
@@ -349,6 +356,52 @@ class Store:
         with self._tx():
             self._db.execute(
                 "DELETE FROM pending_edits WHERE chat_id = ? AND user_id = ?", (chat_id, user_id)
+            )
+
+    def begin_pending_delete(self, chat_id: int, user_id: int, expense_id: int, *, now: datetime) -> None:
+        """Remember that this user's next message in this chat confirms deleting one expense --
+        mirrors `begin_pending_edit` exactly, as a fully independent table/flow (a user can have
+        an edit-target AND a delete-target open at once, on different expenses, with no
+        interaction between them)."""
+        with self._tx():
+            self._db.execute(
+                "INSERT INTO pending_deletes (chat_id, user_id, expense_id, created_at) VALUES (?, ?, ?, ?) "
+                "ON CONFLICT (chat_id, user_id) DO UPDATE SET expense_id = excluded.expense_id, "
+                "created_at = excluded.created_at",
+                (chat_id, user_id, expense_id, now.isoformat()),
+            )
+
+    def pending_delete_target(
+        self, chat_id: int, user_id: int, *, now: datetime, max_age: timedelta = timedelta(minutes=15)
+    ) -> int | None:
+        """The explicit delete-button target, or None when missing, stale, or no longer usable.
+        Unlike `pending_edit_target`, only a CONFIRMED, not-deleted expense counts -- a still
+        pending_confirmation expense was never valid to delete this way (only `propose_delete`'s
+        own `confirmed`-only check applies), so a target left pointing at one self-invalidates
+        here instead of surfacing as a downstream tool error."""
+        row = self._db.execute(
+            "SELECT expense_id, created_at FROM pending_deletes WHERE chat_id = ? AND user_id = ?",
+            (chat_id, user_id),
+        ).fetchone()
+        if row is None:
+            return None
+        if now - datetime.fromisoformat(row[1]) > max_age:
+            self.clear_pending_delete(chat_id, user_id)
+            return None
+        try:
+            expense = self.get_expense(row[0])
+        except KeyError:
+            self.clear_pending_delete(chat_id, user_id)
+            return None
+        if expense.chat_id != chat_id or expense.deleted or expense.state != ExpenseState.confirmed:
+            self.clear_pending_delete(chat_id, user_id)
+            return None
+        return expense.id
+
+    def clear_pending_delete(self, chat_id: int, user_id: int) -> None:
+        with self._tx():
+            self._db.execute(
+                "DELETE FROM pending_deletes WHERE chat_id = ? AND user_id = ?", (chat_id, user_id)
             )
 
     def mark_processed(self, chat_id: int, message_id: int) -> bool:

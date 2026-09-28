@@ -1017,7 +1017,7 @@ def test_correction_debug_log_is_idempotent_useful_and_isolated_from_telegram_ht
         assert "mode=pending" in logged
         assert f"chat_id={CHAT}" in logged and "message_id=2" in logged and "sender_id=1" in logged
         assert f"target_expense_id={pending_id}" in logged
-        assert "prompt_version=correct_v1" in logged
+        assert "prompt_version=correct_v2" in logged
         assert "הוצאה ממתינה לאישור" in logged
         assert "תיקון: בעצם זה היה 40 ולא 50" in logged
         assert "correction_extraction result" in logged
@@ -1074,11 +1074,14 @@ def test_an_existing_pending_proposal_does_not_hijack_a_clearly_new_expense():
     assert out[0].record_as == ("expense", created.id)
 
 
-def test_bot_logic_uses_the_v4_agent_and_v2_expense_extractor_prompts():
-    env = _make([])
+def test_bot_logic_defaults_to_the_v4_agent_and_v3_expense_extractor_prompts():
+    """Unlike `_make()` (which pins its own fixed prompt versions for test stability), this
+    constructs `BotLogic` with no `agent_prompt_version`/`extractor_prompt_version` override, so
+    it actually checks the class's own real defaults -- the ones the running bot gets."""
+    bot = BotLogic(Store(":memory:"), None, None, None, clock=lambda: NOW)
 
-    assert env.bot._agent_prompt_version == "agent_v4"
-    assert env.bot._extractor_prompt_version == "extract_v2"
+    assert bot._agent_prompt_version == "agent_v4"
+    assert bot._extractor_prompt_version == "extract_v3"
 
 
 def test_editing_a_pending_expense_bypasses_router_and_agent_and_revises_the_explicit_target():
@@ -1134,6 +1137,79 @@ def test_edit_targets_are_scoped_by_chat_and_sender_and_expire():
     assert env.store.pending_edit_target(CHAT + 1, 1, now=NOW) is None
     assert env.store.pending_edit_target(CHAT, 1, now=NOW + timedelta(minutes=16)) is None
     assert env.store.pending_edit_target(CHAT, 1, now=NOW) is None
+
+
+# === deleting via the 🗑️ button is deterministic too: no router, no Agent tool choice =====================
+
+
+def test_deleting_a_confirmed_expense_via_button_bypasses_router_and_agent_regardless_of_text():
+    env = _make([])
+    expense_id = _seed_confirmed(env.store, 1, _ONE, description="קפה", author_id=1)
+
+    clicked = env.bot.handle_callback(chat_id=CHAT, sender_id=1, callback_data=f"expense:{expense_id}:delete")
+    # The confirming message's actual wording never matters: propose_delete extracts nothing
+    # from it. Arbitrary text proves the target alone drives this, not the message content.
+    out = env.bot.handle_message(
+        chat_id=CHAT, sender_id=1, sender_name="זיו", message_id=2,
+        text="בטח, תמחק", is_mention=False, reply_to_telegram_message_id=None,
+    )
+
+    assert clicked.edit_original is False
+    assert env.router.calls == []
+    assert env.chat.calls == []
+    request = env.store.get_change_request(1)
+    assert request.kind == ChangeKind.delete and request.expense_id == expense_id
+    assert out[0].record_as == ("change_request", request.id)
+    assert env.store.pending_delete_target(CHAT, 1, now=NOW) is None
+
+
+def test_pressing_delete_on_a_still_pending_expense_self_invalidates_and_falls_through_to_the_agent():
+    """A still-pending expense was never deletable this way (only `propose_delete`'s existing
+    confirmed-only check applied before); `pending_delete_target` now self-invalidates instead of
+    surfacing that as a downstream tool failure, and the sender's next message gets the normal
+    router/Agent treatment, same as if no button had ever been pressed."""
+    env = _make([_calls(_tc("get_balances")), _say("אין חובות פתוחים כרגע.")])
+    expense_id = _seed_pending(env.store, 1, _ONE, author_id=1)
+
+    env.bot.handle_callback(chat_id=CHAT, sender_id=1, callback_data=f"expense:{expense_id}:delete")
+    assert env.store.pending_delete_target(CHAT, 1, now=NOW) is None  # already invalid: not confirmed
+
+    out = env.bot.handle_message(
+        chat_id=CHAT, sender_id=1, sender_name="זיו", message_id=2,
+        text="מי חייב למי?", is_mention=True, reply_to_telegram_message_id=None,
+    )
+
+    assert env.chat.calls != []  # the Agent DID run this time -- no deterministic bypass applied
+    assert out[0].record_as is None
+
+
+def test_delete_targets_are_scoped_by_chat_and_sender_and_expire():
+    env = _make([])
+    expense_id = _seed_confirmed(env.store, 1, _ONE, author_id=1)
+    env.store.begin_pending_delete(CHAT, 1, expense_id, now=NOW)
+
+    assert env.store.pending_delete_target(CHAT, 1, now=NOW) == expense_id
+    assert env.store.pending_delete_target(CHAT, 2, now=NOW) is None
+    assert env.store.pending_delete_target(CHAT + 1, 1, now=NOW) is None
+    assert env.store.pending_delete_target(CHAT, 1, now=NOW + timedelta(minutes=16)) is None
+    assert env.store.pending_delete_target(CHAT, 1, now=NOW) is None
+
+
+def test_approving_an_unrelated_expense_does_not_clear_a_different_delete_target_but_its_own_does():
+    env = _make([])
+    delete_target_id = _seed_confirmed(env.store, 1, _ONE, author_id=1)
+    other_id = _seed_pending(env.store, 2, _ONE, author_id=1, description="קפה")
+    env.store.begin_pending_delete(CHAT, 1, delete_target_id, now=NOW)
+
+    out = env.bot.handle_callback(chat_id=CHAT, sender_id=1, callback_data=f"expense:{other_id}:yes")
+    assert out.text == "✓ אושר"
+    assert env.store.pending_delete_target(CHAT, 1, now=NOW) == delete_target_id  # untouched
+
+    # Now a change request against the SAME expense the delete-target points to gets answered --
+    # this should clear the stored delete-target too, same rule as the edit-target one.
+    request_id = _seed_change_request(env.store, 3, expense_id=delete_target_id, requested_by=1, required_approvers=[1])
+    env.bot.handle_callback(chat_id=CHAT, sender_id=1, callback_data=f"change_request:{request_id}:yes")
+    assert env.store.pending_delete_target(CHAT, 1, now=NOW) is None
 
 
 # === handle_callback clears a pending edit-target ONLY when it answers that SAME expense ==================

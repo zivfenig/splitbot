@@ -308,6 +308,98 @@ def _gallery(name: str, split: str, stamp: str, threshold: float, messages: list
     return "\n".join(lines)
 
 
+_AVERAGED_FIELDS = (
+    "missed_expense_rate", "ignore_filtered_rate", "query_missed_rate",
+    "query_detection", "accuracy", "auc",
+)
+
+
+def combine_router_runs(result_paths: list[Path]) -> dict:
+    """Post-hoc consistency summary across several EXISTING router result files -- reads no
+    network and makes no router calls: pure aggregation of files `run_router_split` already
+    wrote. Unlike `run_agent_eval.py`'s `run_consistency`, this harness has no built-in
+    `--repeat`, so repeated runs (e.g. several separate `--yes` invocations of the same
+    split/router) are only ever produced as independent files; this reads N of them together.
+
+    Every file must be a `run_router_split` result for the SAME `router` and `split`, with the
+    SAME set of case ids (same `n_cases`, same `messages[i]["id"]`s) -- raises ValueError, naming
+    the mismatch, before returning anything, if not.
+
+    Returns:
+      {"component": "router_consistency", "router", "model", "split", "runs": len(result_paths),
+       "source_files": [path.name, ...] (input order), "n_cases",
+       "average_metrics": {"overall"/"easy"/"hard": {
+           <each of missed_expense_rate/ignore_filtered_rate/query_missed_rate/query_detection/
+           accuracy/auc>: the mean across files that have a non-None value for it, or None if
+           none do;
+           "n": summed (not averaged) -- the total number of routed rows across all files;
+           "errors": summed -- total error results across all files;
+           "counts"/"confusion": summed cell-by-cell across files;
+           "cost_usd_per_call": mean of the files that have a cost, or None if none do;
+           "latency_s": {"p50", "p95"}: mean of each across files}},
+       "errors_per_run": [file's own "overall"."errors", in input order],
+       "total_errors": sum(errors_per_run), "total_calls": n_cases * runs,
+       "per_case_accuracy": {case_id: (files where that file's predicted_label == the true
+           label) / runs, in dataset order (first file's message order)}}.
+    A rate/mean that has no files to average (every file's value was None, e.g. no "hard" rows
+    at all) is None, never 0 or an error.
+    """
+    if not result_paths:
+        raise ValueError("need at least one result file")
+    datasets = [json.loads(p.read_text(encoding="utf-8")) for p in result_paths]
+    first = datasets[0]
+    for data, path in zip(datasets, result_paths):
+        if data.get("component") != "router":
+            raise ValueError(f"{path.name} is not a router result file")
+        if data.get("router") != first.get("router") or data.get("split") != first.get("split"):
+            raise ValueError(f"{path.name} has a different router/split than {result_paths[0].name}")
+        if {m["id"] for m in data["messages"]} != {m["id"] for m in first["messages"]}:
+            raise ValueError(f"{path.name} covers a different set of case ids than {result_paths[0].name}")
+
+    def avg_section(sections: list[dict]) -> dict:
+        out: dict = {}
+        for field in _AVERAGED_FIELDS:
+            values = [s[field] for s in sections if s[field] is not None]
+            out[field] = sum(values) / len(values) if values else None
+        out["n"] = sum(s["n"] for s in sections)
+        out["errors"] = sum(s["errors"] for s in sections)
+        out["counts"] = {label: sum(s["counts"][label] for s in sections) for label in LABELS}
+        out["confusion"] = {
+            t: {p: sum(s["confusion"][t][p] for s in sections) for p in LABELS} for t in LABELS
+        }
+        costs = [Decimal(s["cost_usd_per_call"]) for s in sections if s["cost_usd_per_call"] is not None]
+        out["cost_usd_per_call"] = format(sum(costs) / len(costs), "f") if costs else None
+        out["latency_s"] = {
+            key: sum(s["latency_s"][key] for s in sections) / len(sections) for key in ("p50", "p95")
+        }
+        return out
+
+    average_metrics = {
+        name: avg_section([data["metrics"][name] for data in datasets])
+        for name in ("overall", "easy", "hard")
+    }
+    errors_per_run = [data["metrics"]["overall"]["errors"] for data in datasets]
+    by_id = [{m["id"]: m for m in data["messages"]} for data in datasets]
+    per_case_accuracy = {
+        m["id"]: sum(run[m["id"]]["predicted_label"] == m["label"] for run in by_id) / len(datasets)
+        for m in first["messages"]
+    }
+    return {
+        "component": "router_consistency",
+        "router": first["router"],
+        "model": first.get("model"),
+        "split": first["split"],
+        "runs": len(result_paths),
+        "source_files": [p.name for p in result_paths],
+        "n_cases": first["n_cases"],
+        "average_metrics": average_metrics,
+        "errors_per_run": errors_per_run,
+        "total_errors": sum(errors_per_run),
+        "total_calls": first["n_cases"] * len(result_paths),
+        "per_case_accuracy": per_case_accuracy,
+    }
+
+
 def read_threshold(dev_result_path: Path) -> float:
     """The "threshold" of a dev result file written by `run_router_split`. Raises ValueError
     when the file is not a router dev result."""
@@ -343,11 +435,43 @@ def main(
     `main` reads the module-level DATASETS_DIR and RESULTS_DIR at CALL time (tests monkeypatch
     them)."""
     parser = argparse.ArgumentParser(prog="python -m tests.llm_evals.run_router_eval")
-    parser.add_argument("--split", required=True, choices=["dev", "test"])
-    parser.add_argument("--router", required=True, choices=["embedding", "jev"])
+    parser.add_argument("--split", required=False, choices=["dev", "test"])
+    parser.add_argument("--router", required=False, choices=["embedding", "jev"])
     parser.add_argument("--threshold-from", default=None, help="dev result file whose threshold is used (test only)")
     parser.add_argument("--yes", action="store_true", help="really call the router (costs a little money)")
+    parser.add_argument(
+        "--combine", nargs="+", metavar="RESULT_JSON",
+        help="post-hoc consistency summary across N EXISTING result files (no router calls, no cost); "
+             "ignores --split/--router/--threshold-from/--yes",
+    )
     args = parser.parse_args(argv)
+
+    if args.combine:
+        try:
+            summary = combine_router_runs([Path(p) for p in args.combine])
+        except (ValueError, OSError) as exc:
+            print(str(exc), file=sys.stderr)
+            return 2
+        RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+        stem = f"router_{summary['router']}_{summary['split']}_consistency_{summary['runs']}x"
+        path = RESULTS_DIR / f"{stem}.json"
+        path.write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
+        overall = summary["average_metrics"]["overall"]
+
+        def show(value) -> str:
+            return "-" if value is None else f"{value:.3f}"
+
+        print(
+            f"{summary['runs']} runs combined | missed expense rate {show(overall['missed_expense_rate'])} | "
+            f"ignore filtered rate {show(overall['ignore_filtered_rate'])} | AUC {show(overall['auc'])} | "
+            f"errors {summary['total_errors']}/{summary['total_calls']}"
+        )
+        print(f"result file: {path}")
+        return 0
+
+    if not args.split or not args.router:
+        print("--split and --router are required unless --combine is given", file=sys.stderr)
+        return 2
 
     try:
         if args.split == "dev" and args.threshold_from:

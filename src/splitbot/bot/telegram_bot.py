@@ -137,7 +137,7 @@ class BotLogic:
         *,
         default_mode: ApprovalMode = ApprovalMode.author,
         agent_prompt_version: str = "agent_v4",
-        extractor_prompt_version: str = "extract_v2",
+        extractor_prompt_version: str = "extract_v3",
         threshold: float | None = None,
         clock: Callable[[], datetime] | None = None,
     ):
@@ -271,6 +271,44 @@ class BotLogic:
             self._store.log_message(chat_id, "bot", response)
             return [OutgoingMessage(text=response)]
 
+        # An edit target (checked above) takes priority in the unlikely case a sender somehow
+        # has both open at once; each table is independent, so this never actually collides in
+        # normal use (each button press only ever sets its own kind of target).
+        delete_target = self._store.pending_delete_target(chat_id, sender_id, now=self._clock())
+        _log.debug(
+            "delete_flow lookup chat_id=%s message_id=%s sender_id=%s pending_delete_target=%s",
+            chat_id, message_id, sender_id, delete_target,
+        )
+        if delete_target is not None:
+            members = self._store.get_members(chat_id)
+            config = GroupConfig(chat_id=chat_id, members=members, default_mode=self._default_mode)
+            write_tools = WriteTools(
+                self._store, self._write_llm, members, config,
+                prompt_version=self._extractor_prompt_version, clock=self._clock,
+            )
+            proposal = write_tools.propose_delete(
+                chat_id=chat_id, message_id=message_id, sender_id=sender_id,
+                text=text, target_expense_id=delete_target,
+            )
+            _log.debug(
+                "delete_flow proposal chat_id=%s message_id=%s sender_id=%s target_expense_id=%s "
+                "status=%s issues=%r",
+                chat_id, message_id, sender_id, delete_target, proposal.status, proposal.issues,
+            )
+            # Unlike the edit flow, this always clears on the first attempt, success or not:
+            # `propose_delete` extracts nothing from `text` (deletion needs no fields), so a
+            # failure here (not confirmed, already deleted, not a relevant approver) is never
+            # something retyping the message differently would fix -- leaving the target open
+            # would only risk every subsequent message repeating the same failed delete attempt.
+            self._store.clear_pending_delete(chat_id, sender_id)
+            if proposal.status == "pending_confirmation":
+                message = self._outgoing_for_proposal(proposal, text, members)
+                self._store.log_message(chat_id, "bot", message.text)
+                return [message]
+            response = "לא ניתן למחוק את ההוצאה הזו כרגע. אפשר לנסות שוב, או לחפש אותה מחדש."
+            self._store.log_message(chat_id, "bot", response)
+            return [OutgoingMessage(text=response)]
+
         if not is_mention and reply_to_telegram_message_id is None:
             result = self._router.route(text)
             if decide(result, self._threshold) == "ignore":
@@ -289,6 +327,7 @@ class BotLogic:
         """The post-router Agent workflow."""
 
         reply_target = self._resolve_reply_target(chat_id, reply_to_telegram_message_id)
+        _log.debug("handle_message: prior_search_ids=%s (from Store.recent_search_results)", prior_search_ids)
         if reply_target is None and not prior_search_ids:
             reply_target = self._store.latest_pending_expense_for(
                 chat_id, sender_id, now=self._clock(), expiry=pending_expiry()
@@ -297,7 +336,10 @@ class BotLogic:
                 "handle_message: no explicit reply target, latest_pending_expense_for(chat_id=%s, sender_id=%s) -> %s",
                 chat_id, sender_id, reply_target,
             )
-        _log.debug("handle_message: FINAL reply_target_expense_id=%s passed to agent.run_turn", reply_target)
+        _log.debug(
+            "handle_message: FINAL reply_target_expense_id=%s prior_search_expense_ids=%s passed to agent.run_turn",
+            reply_target, prior_search_ids,
+        )
         members = self._store.get_members(chat_id)
         config = GroupConfig(chat_id=chat_id, members=members, default_mode=self._default_mode)
         write_tools = WriteTools(
@@ -508,14 +550,15 @@ class BotLogic:
         "✓ אושר" when `approve`, "✗ בוטל" otherwise -- never the model's wording (there is no
         model wording to begin with: buttons never call the LLM).
 
-        The sender's pending edit-target (see `Store.pending_edit_target`) is cleared ONLY when
-        this callback answered THAT SAME expense: "expense" compares `target_id` directly;
-        "change_request" compares `store.respond`'s returned `expense_id` (the change request's
-        own target, not the request's id); "settlement" never matches (a settlement has no
-        associated expense id) and so never clears an edit target. An unrelated button press --
-        approving or rejecting some other expense while an edit is pending on a different one --
-        leaves the edit target untouched, so the sender's next free-text message still lands on
-        the expense they pressed ✏️ תיקון for."""
+        The sender's pending edit-target and pending delete-target (see `Store.pending_edit_target`
+        / `pending_delete_target`) are each cleared ONLY when this callback answered THAT SAME
+        expense: "expense" compares `target_id` directly; "change_request" compares
+        `store.respond`'s returned `expense_id` (the change request's own target, not the
+        request's id); "settlement" never matches (a settlement has no associated expense id) and
+        so never clears either. An unrelated button press -- approving or rejecting some other
+        expense while an edit or a delete is pending on a different one -- leaves that target
+        untouched, so the sender's next free-text message still lands on the expense they pressed
+        ✏️ תיקון or 🗑️ מחיקה for."""
         parts = callback_data.split(":")
         parsed = self._parse_callback(callback_data)
         if parsed is None:
@@ -531,8 +574,28 @@ class BotLogic:
             if action == "edit":
                 self._store.begin_pending_edit(chat_id, sender_id, target_id, now=self._clock())
             else:
-                self._store.remember_search_results(chat_id, sender_id, [target_id], now=self._clock())
-            instruction = "כתוב/י עכשיו את התיקון המבוקש." if action == "edit" else "כתוב/י עכשיו: תמחק את 1"
+                # Deterministic, like the edit flow: the sender's NEXT message -- whatever it
+                # says -- triggers `propose_delete` on THIS target directly in `handle_message`,
+                # bypassing the router and the Agent's own tool choice entirely (see
+                # `pending_delete_target`). `propose_delete` extracts nothing from the message
+                # text, so unlike edit there is no "wording" for the sender to get right.
+                self._store.begin_pending_delete(chat_id, sender_id, target_id, now=self._clock())
+            instruction = (
+                "כתוב/י עכשיו את התיקון המבוקש." if action == "edit"
+                else "שלח/י כל הודעה כדי לאשר בקשה למחיקת ההוצאה הזו."
+            )
+            _log.debug(
+                "handle_callback: action=%s chat_id=%s sender_id=%s target_id=%s "
+                "remembered_search_results=%s instruction=%r",
+                action, chat_id, sender_id, target_id,
+                [target_id] if action == "delete" else None, instruction,
+            )
+            # Button presses never went through log_message before (handle_message is the only
+            # caller) -- meaning the bot's own instruction text was invisible to the next turn's
+            # `recent_messages` context, unlike every other bot reply. Logged here for the same
+            # reason every other reply is: a vague follow-up ("תמחק את 1") relies partly on that
+            # natural-language history to resolve, on top of the structured Selection-mapping.
+            self._store.log_message(chat_id, "bot", instruction)
             return OutgoingMessage(text=instruction, edit_original=False)
         approve = action == "yes"
         answered_expense_id: int | None = None
@@ -547,17 +610,25 @@ class BotLogic:
                 answered_expense_id = updated.expense_id
         except (NotRelevantApprover, IllegalTransition, StateConflict, KeyError):
             return OutgoingMessage(text=_CALLBACK_ERROR, edit_original=False, alert=True)
-        # Only clear a pending edit-target when THIS callback answered that same expense: an
-        # unrelated approval/rejection must not silently cancel an in-progress ✏️ תיקון flow on a
-        # different expense (a settlement callback never matches: it has no expense id at all).
-        if answered_expense_id is not None and self._store.pending_edit_target(
-            chat_id, sender_id, now=self._clock()
-        ) == answered_expense_id:
-            self._store.clear_pending_edit(chat_id, sender_id)
+        # Only clear a pending edit-/delete-target when THIS callback answered that same expense:
+        # an unrelated approval/rejection must not silently cancel an in-progress ✏️ תיקון or
+        # 🗑️ מחיקה flow on a different expense (a settlement callback never matches: it has no
+        # expense id at all).
+        if answered_expense_id is not None:
+            if self._store.pending_edit_target(chat_id, sender_id, now=self._clock()) == answered_expense_id:
+                self._store.clear_pending_edit(chat_id, sender_id)
+            if self._store.pending_delete_target(chat_id, sender_id, now=self._clock()) == answered_expense_id:
+                self._store.clear_pending_delete(chat_id, sender_id)
         buttons = ()
         if approve and kind == "expense":
             buttons = (("✏️ תיקון", f"expense:{target_id}:edit"), ("🗑️ מחיקה", f"expense:{target_id}:delete"))
-        return OutgoingMessage(text="✓ אושר" if approve else "✗ בוטל", buttons=buttons)
+        ack_text = "✓ אושר" if approve else "✗ בוטל"
+        _log.debug(
+            "handle_callback: kind=%s chat_id=%s sender_id=%s target_id=%s approve=%s ack=%r",
+            kind, chat_id, sender_id, target_id, approve, ack_text,
+        )
+        self._store.log_message(chat_id, "bot", ack_text)
+        return OutgoingMessage(text=ack_text, buttons=buttons)
 
     @staticmethod
     def _parse_callback(callback_data: str) -> tuple[str, int, str] | None:

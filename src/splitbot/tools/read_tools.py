@@ -250,7 +250,13 @@ TOOL_SPECS: list[dict] = [
         "type": "function",
         "function": {
             "name": "get_member_statement",
-            "description": "Explain what one member owes/is owed per expense, plus their net settlement. Omit member_id for the sender.",
+            "description": (
+                "A PERSONAL, itemized breakdown for ONE member: which specific expenses explain "
+                "what they owe or are owed, plus their own net settlement. Use for a question "
+                "about one person's own debt in detail, e.g. 'למה אני חייב כסף?' or 'על מה נועה "
+                "חייבת לי?'. Omit member_id for the sender. NOT for a group-wide picture -- use "
+                "get_balances for that."
+            ),
             "parameters": {"type": "object", "properties": {"member_id": {"type": "integer"}},
                            "additionalProperties": False},
         },
@@ -259,8 +265,13 @@ TOOL_SPECS: list[dict] = [
         "type": "function",
         "function": {
             "name": "get_balances",
-            "description": "Who owes whom in this chat, per currency: each member's net balance and a small set of "
-            "transfers that settle it. Amounts are computed by code from the ledger.",
+            "description": (
+                "A compact, GROUP-WIDE picture: each member's net balance and a small set of "
+                "transfers that settle it, per currency, computed by code from the ledger. Use "
+                "for a question about the whole group's balances, e.g. 'איך המצב בינינו?' or 'מי "
+                "צריך להעביר למי?'. NOT for one person's own itemized detail -- use "
+                "get_member_statement for that."
+            ),
             "parameters": {"type": "object", "properties": {}, "additionalProperties": False},
         },
     },
@@ -268,7 +279,15 @@ TOOL_SPECS: list[dict] = [
         "type": "function",
         "function": {
             "name": "search_expenses",
-            "description": "Search this chat's confirmed expenses, newest first. All filters are optional and combined with AND.",
+            "description": (
+                "Search this chat's confirmed expenses and return the actual LIST, with real "
+                "ids, newest first. All filters are optional and combined with AND. Use when the "
+                "user wants to SEE, FIND, or LIST specific expenses, e.g. 'מה קניתי בסופר "
+                "החודש?' or 'תמצא את ההוצאה של הניקיון'. This is also the ONLY way to get a real "
+                "expense id for a later correction/deletion that isn't a direct reply. NEVER use "
+                "spending_summary for a listing question -- it returns totals only, no "
+                "individual expenses and no ids."
+            ),
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -290,11 +309,28 @@ TOOL_SPECS: list[dict] = [
         "type": "function",
         "function": {
             "name": "spending_summary",
-            "description": "Total spending of this chat, per currency, grouped by category, subcategory, month or payer.",
+            "description": (
+                "A TOTAL only -- one number or a short breakdown, per currency, grouped by "
+                "category/subcategory/month/payer. NEVER returns individual expenses or ids. Use "
+                "when the user asks HOW MUCH was spent, e.g. 'כמה יצא לנו על אינטרנט?' or 'כמה "
+                "הוצאנו על מים בחודש שעבר?'. NEVER use this to list which expenses exist -- use "
+                "search_expenses for that."
+            ),
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "by": {"type": "string", "enum": list(_BY)},
+                    "by": {
+                        "type": "string", "enum": list(_BY),
+                        "description": (
+                            "'category': the default choice for a broad group (eating "
+                            "out/utilities/groceries/etc), e.g. 'כמה על תחזוקת הבית?' -> ONE "
+                            "combined total. 'subcategory': ONLY when the user names one "
+                            "specific subcategory or explicitly asks for a breakdown, e.g. 'כמה "
+                            "ספציפית על ניקיון, לא כל התחזוקה?'. Choosing subcategory for a broad "
+                            "question splits one real total into several partial numbers you "
+                            "must never add together yourself. 'month'/'payer': those groupings."
+                        ),
+                    },
                     "month": {"type": "string", "description": "optional YYYY-MM filter"},
                 },
                 "required": ["by"],

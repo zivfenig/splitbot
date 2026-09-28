@@ -616,23 +616,30 @@ def test_run_all_with_run_label_suffixes_both_filenames_and_omitting_it_keeps_th
 
 
 def test_run_all_prompt_versions_have_distinct_filenames_and_metadata_so_they_cannot_overwrite(tmp_path):
+    """The filename is keyed on `run_stamp` (the real time this ran), not `today`/`EVAL_TODAY`
+    (the fixed simulated scenario date) -- two prompt versions run back to back, even with the
+    exact same `run_stamp`, must still land in different files because `prompt_version` is also
+    part of the stem."""
     results_dir = tmp_path / "results"
+    stamp = "2026-09-15T120000Z"
     chat_v2, write_v2 = _fresh_factories()
     path_v2 = run_agent_eval.run_all(
         chat_factory=chat_v2, write_llm_factory=write_v2,
         datasets_dir=run_agent_eval.DATASETS_DIR, results_dir=results_dir,
-        today=EVAL_TODAY, prompt_version="agent_v2",
+        today=EVAL_TODAY, prompt_version="agent_v2", run_stamp=stamp,
     )
     chat_v3, write_v3 = _fresh_factories()
     path_v3 = run_agent_eval.run_all(
         chat_factory=chat_v3, write_llm_factory=write_v3,
         datasets_dir=run_agent_eval.DATASETS_DIR, results_dir=results_dir,
-        today=EVAL_TODAY, prompt_version="agent_v3",
+        today=EVAL_TODAY, prompt_version="agent_v3", run_stamp=stamp,
     )
 
-    assert path_v2.name == f"agent_unknown_agent_v2_{EVAL_TODAY.isoformat()}.json"
-    assert path_v3.name == f"agent_unknown_agent_v3_{EVAL_TODAY.isoformat()}.json"
+    assert path_v2.name == f"agent_unknown_agent_v2_{stamp}.json"
+    assert path_v3.name == f"agent_unknown_agent_v3_{stamp}.json"
     assert path_v2 != path_v3 and path_v2.exists() and path_v3.exists()
+    assert json.loads(path_v2.read_text(encoding="utf-8"))["date"] == EVAL_TODAY.isoformat()  # unchanged meaning
+    assert json.loads(path_v2.read_text(encoding="utf-8"))["run_at"] == stamp
     assert json.loads(path_v2.read_text(encoding="utf-8"))["prompt_version"] == "agent_v2"
     assert json.loads(path_v3.read_text(encoding="utf-8"))["prompt_version"] == "agent_v3"
 
@@ -657,14 +664,16 @@ def test_run_consistency_tracks_per_case_pass_rate_across_repeated_runs(tmp_path
             return FakeLLM([_extract_reply("correction", amount=amount, payer_id=4)])
         return FakeLLM(list(_EXTRACTOR_SCRIPTS[case_id]))
 
+    stamp = "2026-09-15T120000Z"
     path = run_agent_eval.run_consistency(chat_factory=chat_factory, write_llm_factory=write_llm_factory, runs=5,
                                           datasets_dir=run_agent_eval.DATASETS_DIR, results_dir=results_dir,
-                                          today=EVAL_TODAY, prompt_version="agent_v3")
+                                          today=EVAL_TODAY, prompt_version="agent_v3", run_stamp=stamp)
 
     assert path.exists()
-    assert path.name == f"agent_unknown_agent_v3_{EVAL_TODAY.isoformat()}_consistency_5x.json"
+    assert path.name == f"agent_unknown_agent_v3_{stamp}_consistency_5x.json"
     data = json.loads(path.read_text(encoding="utf-8"))
-    assert data["date"] == EVAL_TODAY.isoformat() and data["runs"] == 5 and data["n_cases"] == 11
+    assert data["date"] == EVAL_TODAY.isoformat() and data["run_at"] == stamp
+    assert data["runs"] == 5 and data["n_cases"] == 11
     assert data["prompt_version"] == "agent_v3"
     per_case = data["per_case"]
 

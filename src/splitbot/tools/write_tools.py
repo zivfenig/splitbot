@@ -92,8 +92,8 @@ class WriteTools:
         members: list[Member],
         config: GroupConfig,
         *,
-        prompt_version: str = "extract_v2",
-        correction_prompt_version: str = "correct_v1",
+        prompt_version: str = "extract_v3",
+        correction_prompt_version: str = "correct_v2",
         settlement_prompt_version: str = "settle_v1",
         clock: Callable[[], datetime] | None = None,
     ):

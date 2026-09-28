@@ -36,6 +36,24 @@ Phrases such as "על כל הבית", "לכולנו", or no participant wording 
 "לזיו ולירדן", or an explicit list must include the complete intended set in `only`. By contrast,
 "של ירדן", "רק ירדן", and "עבור ירדן בלבד" mean only ירדן and must not include the sender.
 
+The message can state who shares an expense through a PRONOUN, with no name at all -- these are
+just as explicit as a named list, and must be handled the same way. `source` is "default" ONLY
+when the message says nothing whatsoever about participants; the instant you can point to words
+that state who shares it (named or not), `source` is "message" with those words as evidence, even
+if the resulting set happens to equal everyone. Do not leave `source:"default"` while still
+filling in `only` -- if `only` is non-null, `source` must be "message". Examples:
+- "לשנינו" / "שנינו" ("the two of us"/"both of us") means the sender AND the one other person
+  this is being said to -- in a two-person chat that is the whole roster, but `source` is still
+  "message" (evidence "לשנינו"), `only` still lists both people by id.
+- "לשלושתנו" / "רק אנחנו" ("the three of us"/"just us") means the sender plus however many other
+  specific people are clearly implied by context (e.g. everyone already named earlier in the same
+  message, or the whole roster if it has exactly that many members); if the exact people it refers
+  to genuinely cannot be determined from the message and the roster, treat it like any other
+  unresolvable reference (low confidence) rather than guessing a subset.
+- "גם אני" ("me too") adds the sender to whatever set was otherwise stated.
+- "בלעדיי" / "חוץ ממני" / "לא אני" ("without me"/"except me"/"not me") excludes the sender --
+  same meaning as "אני לא משתתף", just phrased differently; put the sender in `exclude`.
+
 For `operation:correct`, extract the NEW values. In "25 ולא 30" amount is 25; `refers_to` may
 contain words identifying the old expense. When the message is a code-built restatement followed
 by `תיקון:`, preserve restated fields unless the correction replaces them. Never calculate money

@@ -1,0 +1,173 @@
+{
+  "component": "router_consistency",
+  "router": "jev",
+  "model": "typesafe/jev-1.13",
+  "split": "test",
+  "runs": 5,
+  "source_files": [
+    "router_jev_test_2026-09-28_run1.json",
+    "router_jev_test_2026-09-28_run2.json",
+    "router_jev_test_2026-09-28_run3.json",
+    "router_jev_test_2026-09-28_run4.json",
+    "router_jev_test_2026-09-28_run5.json"
+  ],
+  "n_cases": 34,
+  "average_metrics": {
+    "overall": {
+      "missed_expense_rate": 0.0,
+      "ignore_filtered_rate": 0.49090909090909085,
+      "query_missed_rate": 0.0,
+      "query_detection": 0.95,
+      "accuracy": 0.8294117647058823,
+      "auc": 0.9304347826086957,
+      "n": 170,
+      "errors": 11,
+      "counts": {
+        "expense": 75,
+        "query": 40,
+        "ignore": 55
+      },
+      "confusion": {
+        "expense": {
+          "expense": 75,
+          "query": 0,
+          "ignore": 0
+        },
+        "query": {
+          "expense": 2,
+          "query": 38,
+          "ignore": 0
+        },
+        "ignore": {
+          "expense": 18,
+          "query": 9,
+          "ignore": 28
+        }
+      },
+      "cost_usd_per_call": "0.00001593",
+      "latency_s": {
+        "p50": 0.3466276163700968,
+        "p95": 8.33448540805839
+      }
+    },
+    "easy": {
+      "missed_expense_rate": 0.0,
+      "ignore_filtered_rate": 0.7,
+      "query_missed_rate": 0.0,
+      "query_detection": 0.9,
+      "accuracy": 0.9294117647058823,
+      "auc": 0.9653846153846153,
+      "n": 85,
+      "errors": 4,
+      "counts": {
+        "expense": 55,
+        "query": 10,
+        "ignore": 20
+      },
+      "confusion": {
+        "expense": {
+          "expense": 55,
+          "query": 0,
+          "ignore": 0
+        },
+        "query": {
+          "expense": 1,
+          "query": 9,
+          "ignore": 0
+        },
+        "ignore": {
+          "expense": 1,
+          "query": 4,
+          "ignore": 15
+        }
+      },
+      "cost_usd_per_call": "0.00001584",
+      "latency_s": {
+        "p50": 0.3491694999858737,
+        "p95": 9.583941958006472
+      }
+    },
+    "hard": {
+      "missed_expense_rate": 0.0,
+      "ignore_filtered_rate": 0.3714285714285714,
+      "query_missed_rate": 0.0,
+      "query_detection": 0.9666666666666666,
+      "accuracy": 0.7294117647058823,
+      "auc": 0.9442857142857143,
+      "n": 85,
+      "errors": 7,
+      "counts": {
+        "expense": 20,
+        "query": 30,
+        "ignore": 35
+      },
+      "confusion": {
+        "expense": {
+          "expense": 20,
+          "query": 0,
+          "ignore": 0
+        },
+        "query": {
+          "expense": 1,
+          "query": 29,
+          "ignore": 0
+        },
+        "ignore": {
+          "expense": 17,
+          "query": 5,
+          "ignore": 13
+        }
+      },
+      "cost_usd_per_call": "0.00001602",
+      "latency_s": {
+        "p50": 0.35764501662924886,
+        "p95": 9.451264966325834
+      }
+    }
+  },
+  "errors_per_run": [
+    1,
+    0,
+    4,
+    2,
+    4
+  ],
+  "total_errors": 11,
+  "total_calls": 170,
+  "per_case_accuracy": {
+    "r-02": 1.0,
+    "r-06": 1.0,
+    "r-09": 1.0,
+    "r-12": 1.0,
+    "r-14": 1.0,
+    "r-16": 1.0,
+    "r-18": 1.0,
+    "r-20": 1.0,
+    "r-23": 0.0,
+    "r-25": 0.0,
+    "r-28": 0.0,
+    "r-30": 1.0,
+    "r-34": 1.0,
+    "r-36": 1.0,
+    "r-38": 1.0,
+    "r-40": 1.0,
+    "r-43": 1.0,
+    "r-45": 1.0,
+    "r-54": 1.0,
+    "r-59": 1.0,
+    "r-62": 1.0,
+    "r-64": 1.0,
+    "r-67": 1.0,
+    "r-70": 0.8,
+    "r-73": 1.0,
+    "r-76": 0.8,
+    "r-78": 1.0,
+    "r-81": 0.2,
+    "r-84": 0.8,
+    "r-87": 0.8,
+    "r-89": 0.8,
+    "r-92": 1.0,
+    "r-95": 1.0,
+    "r-97": 0.0
+  }
+}

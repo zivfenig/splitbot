@@ -577,6 +577,18 @@ def build_gallery(cases: list[Case], results: list[CaseResult]) -> str:
     return "\n".join(lines)
 
 
+def _default_run_stamp() -> str:
+    """The REAL wall-clock time this eval actually executed, for the result filename -- distinct
+    from `today`/`EVAL_TODAY`, which is the FIXED simulated date the scenarios pretend is "today"
+    (seeded expenses, the agent's own clock, month-relative wording). Two runs on the same real
+    day, or even two runs of the very same `--repeat 5` command minutes apart, get different
+    filenames, so a later run never silently overwrites an earlier one's evidence -- which is
+    exactly what happened before this existed: every run wrote to the same
+    `..._2026-09-15_consistency_5x.json` regardless of when it was actually run, because that
+    stamp came from `EVAL_TODAY`, not the real clock."""
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H%M%SZ")
+
+
 def run_all(
     *,
     chat_factory: Callable[[], ChatLLM],
@@ -587,6 +599,7 @@ def run_all(
     today: date = EVAL_TODAY,
     run_label: str | None = None,
     prompt_version: str = "agent_v4",
+    run_stamp: str | None = None,
 ) -> Path:
     """Load the cases IN FILE ORDER and run every one with `run_case` (agent prompt
     `prompt_version`, default "agent_v4", the current runtime default), calling `chat_factory()`
@@ -594,19 +607,25 @@ def run_all(
     exactly ONCE PER CASE (a fresh client from each factory per case, so one case's failure
     never taints another's token/cost accounting; `write_llm_factory` defaults to
     `chat_factory` when omitted, i.e. one real client for both roles), and write
-    `<results_dir>/agent_<model>_<prompt_version>_<today ISO>[_<run_label>].json` (creating the folder) plus the
-    gallery at the same stem with `_gallery.md`. `run_label`, when given, is appended to BOTH
-    file stems (e.g. "r1") so several runs on the same day never overwrite each other; omitted
-    (the default), no run suffix is added. Including the prompt prevents one version's evaluation
-    from overwriting another version's evidence. Returns the result file's path.
+    `<results_dir>/agent_<model>_<prompt_version>_<run_stamp>[_<run_label>].json` (creating the
+    folder) plus the gallery at the same stem with `_gallery.md`. `run_stamp` (default
+    `_default_run_stamp()`: the real UTC time of this call, "YYYY-MM-DDTHHMMSSZ") is what makes
+    the filename unique per actual execution -- it is NOT `today`/`EVAL_TODAY`, which stays the
+    fixed simulated scenario date and never appears in the filename at all any more. `run_label`,
+    when given, is appended to BOTH file stems (e.g. "r1") so the several runs inside one
+    `run_consistency` call (which share one `run_stamp`) don't collide with each other either.
+    Including the prompt prevents one version's evaluation from overwriting another version's
+    evidence. Returns the result file's path.
 
-    The JSON has: "date", "model" (the first call's model), "prompt_version", "prices"/
+    The JSON has: "date" (the simulated `today`, unchanged meaning), "run_at" (`run_stamp`: when
+    this actually ran), "model" (the first call's model), "prompt_version", "prices"/
     "prices_sha" (as in `run_evals.run_split`), "n_cases", "report" (`build_report`'s dict),
     and "cases": {case_id: {"message", "sender", "outcome_kind", "passed", "failures",
     "reply_text", "tool_calls", "cost_usd"}}."""
     cases = load_cases(datasets_dir)
     write_factory = write_llm_factory or chat_factory
     clock = lambda: datetime.combine(today, time(12, 0), tzinfo=timezone.utc)  # noqa: E731
+    run_stamp = run_stamp or _default_run_stamp()
     results: list[CaseResult] = []
     model: str | None = None
     for case in cases:
@@ -620,6 +639,7 @@ def run_all(
     by_case = {c.id: c for c in cases}
     result_json = {
         "date": today.isoformat(),
+        "run_at": run_stamp,
         "model": model,
         "prompt_version": prompt_version,
         "prices": _price_record(model, prices_path),
@@ -643,7 +663,7 @@ def run_all(
     results_dir.mkdir(parents=True, exist_ok=True)
     safe_model = (model or "unknown").replace("/", "_")
     safe_prompt = prompt_version.replace("/", "_")
-    stem = f"agent_{safe_model}_{safe_prompt}_{today.isoformat()}" + (f"_{run_label}" if run_label else "")
+    stem = f"agent_{safe_model}_{safe_prompt}_{run_stamp}" + (f"_{run_label}" if run_label else "")
     path = results_dir / f"{stem}.json"
     path.write_text(json.dumps(result_json, ensure_ascii=False, indent=2), encoding="utf-8")
     gallery_path = results_dir / f"{stem}_gallery.md"
@@ -668,21 +688,28 @@ def run_consistency(
     prices_path: Path | None = None,
     today: date = EVAL_TODAY,
     prompt_version: str = "agent_v4",
+    run_stamp: str | None = None,
 ) -> Path:
     """Calls `run_all` `runs` times (agent prompt `prompt_version`, default "agent_v4", the
     current runtime default; `run_label` "r1".."r<runs>",
     so every individual run's own
-    result file and gallery are kept, independently inspectable), and writes ONE combined report:
-    `<results_dir>/agent_<model>_<prompt_version>_<today ISO>_consistency_<runs>x.json`, plus a combined summary
-    at the same stem with `_gallery.md` (`build_consistency_summary`). Returns the combined
-    report's path.
+    result file and gallery are kept, independently inspectable), all sharing ONE `run_stamp`
+    (default `_default_run_stamp()`, computed once here: the real UTC time of THIS call), and
+    writes ONE combined report: `<results_dir>/agent_<model>_<prompt_version>_<run_stamp>_consistency_<runs>x.json`,
+    plus a combined summary at the same stem with `_gallery.md` (`build_consistency_summary`).
+    `run_stamp` -- not `today`/`EVAL_TODAY`, the fixed simulated scenario date, which never
+    appears in the filename -- is what makes each real execution's files unique, so running this
+    again (e.g. after a prompt edit) never silently overwrites the previous evidence. Returns the
+    combined report's path.
 
-    The JSON has: "date", "model", "runs", "n_cases", "total_cost_usd" (summed over every run),
+    The JSON has: "date" (the simulated `today`), "run_at" (`run_stamp`), "model", "runs",
+    "n_cases", "total_cost_usd" (summed over every run),
     "per_case": {case_id: {"outcome_kind", "passed": k, "total": runs, "pass_rate": k / runs}},
     in dataset file order, and "overall_pass_rate" (total passes over `n_cases * runs`).
     `runs` must be >= 1; raises ValueError otherwise, before any call is made."""
     if runs < 1:
         raise ValueError("runs must be >= 1")
+    run_stamp = run_stamp or _default_run_stamp()
     cases = load_cases(datasets_dir)
     per_case = {c.id: {"outcome_kind": c.outcome["kind"], "passed": 0, "total": 0} for c in cases}
     total_cost = Decimal(0)
@@ -691,7 +718,7 @@ def run_consistency(
         path = run_all(
             chat_factory=chat_factory, write_llm_factory=write_llm_factory, datasets_dir=datasets_dir,
             results_dir=results_dir, prices_path=prices_path, today=today, run_label=f"r{i}",
-            prompt_version=prompt_version,
+            prompt_version=prompt_version, run_stamp=run_stamp,
         )
         data = json.loads(path.read_text(encoding="utf-8"))
         model = model or data["model"]
@@ -706,6 +733,7 @@ def run_consistency(
 
     result_json = {
         "date": today.isoformat(),
+        "run_at": run_stamp,
         "model": model,
         "prompt_version": prompt_version,
         "runs": runs,
@@ -717,7 +745,7 @@ def run_consistency(
     results_dir.mkdir(parents=True, exist_ok=True)
     safe_model = (model or "unknown").replace("/", "_")
     safe_prompt = prompt_version.replace("/", "_")
-    stem = f"agent_{safe_model}_{safe_prompt}_{today.isoformat()}_consistency_{runs}x"
+    stem = f"agent_{safe_model}_{safe_prompt}_{run_stamp}_consistency_{runs}x"
     combined_path = results_dir / f"{stem}.json"
     combined_path.write_text(json.dumps(result_json, ensure_ascii=False, indent=2), encoding="utf-8")
     (results_dir / f"{stem}_gallery.md").write_text(build_consistency_summary(cases, per_case, runs), encoding="utf-8")
@@ -745,6 +773,7 @@ def main(
     chat_factory: Callable[[], ChatLLM] | None = None,
     write_llm_factory: Callable[[], LLMClient] | None = None,
     today: date = EVAL_TODAY,
+    run_stamp: str | None = None,
 ) -> int:
     """CLI: `--yes` (default: dry run), `--repeat N` (default 1: the standard way to run this
     for real is `--repeat 5`, for a consistency read rather than a single pass/fail).
@@ -800,7 +829,7 @@ def main(
         path = run_consistency(
             chat_factory=chat_factory or default_factory, write_llm_factory=write_llm_factory,
             runs=args.repeat, datasets_dir=DATASETS_DIR, results_dir=RESULTS_DIR, today=today,
-            prompt_version=args.prompt,
+            prompt_version=args.prompt, run_stamp=run_stamp,
         )
         data = json.loads(path.read_text(encoding="utf-8"))
         per_case_cases = [c for c in load_cases(DATASETS_DIR)]
@@ -813,7 +842,7 @@ def main(
         chat_factory=chat_factory or default_factory,
         write_llm_factory=write_llm_factory,
         datasets_dir=DATASETS_DIR, results_dir=RESULTS_DIR, today=today,
-        prompt_version=args.prompt,
+        prompt_version=args.prompt, run_stamp=run_stamp,
     )
     report = json.loads(path.read_text(encoding="utf-8"))["report"]
     print(f"{report['passed']} passed, {report['failed']} failed | cost ${report['total_cost_usd']}")

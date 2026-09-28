@@ -37,6 +37,8 @@ Full design rationale, guardrails, and product decisions live in `CLAUDE.md`.
 
 ## Setup
 
+Requires Python 3.12+.
+
 ```bash
 git clone <this repo>
 cd splitbot
@@ -56,6 +58,17 @@ working default):
 | `AGENT_MODEL` | The agent's own tool-calling model |
 | `OPENROUTER_API_KEY` | The Jev router (via OpenRouter) |
 | `TELEGRAM_BOT_TOKEN` | The Telegram bot itself |
+
+`TELEGRAM_BOT_TOKEN` is your own — there's no shared bot to connect to. Create one via
+[@BotFather](https://t.me/BotFather) on Telegram (`/newbot`, pick a name and a username), copy
+the token it gives you into `.env`, then add that new bot to your own Telegram group. Each
+`TELEGRAM_BOT_TOKEN` is a fully separate, independent bot instance with its own ledger.
+
+**Important**: with BotFather, turn Group Privacy **off** for your bot (`/mybots` → your bot →
+"Bot Settings" → "Group Privacy" → "Turn off"). By default a bot only sees messages that
+@-mention it or reply to it — this bot also needs to see every plain message in the group to
+route it (ignore vs. an expense/question), so privacy mode must be off or it will silently miss
+everything that doesn't @-mention it.
 
 Never commit `.env` (it's gitignored).
 

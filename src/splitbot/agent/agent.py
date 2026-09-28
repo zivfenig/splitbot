@@ -34,7 +34,11 @@ _WRITE_SPECS: list[dict] = [
         "type": "function",
         "function": {
             "name": "propose_expense",
-            "description": "Record the user's message as a NEW expense. Only proposes it: the user must confirm.",
+            "description": (
+                "Record the user's message as a NEW, completed expense, e.g. 'שילמתי 60 על "
+                "אינטרנט' or 'הזמנתי אוכל, יצא לי 45'. Only proposes it: the user must confirm "
+                "before anything is stored."
+            ),
             "parameters": {"type": "object", "properties": {}, "additionalProperties": False},
         },
     },
@@ -42,8 +46,12 @@ _WRITE_SPECS: list[dict] = [
         "type": "function",
         "function": {
             "name": "propose_correction",
-            "description": "Propose changing any details of a CONFIRMED expense (the one replied to, or one found by search). "
-            "Use this, not revise_pending, when context says Target expense state: confirmed.",
+            "description": (
+                "Propose changing any details of a CONFIRMED expense (the one replied to, or one "
+                "found by search) -- e.g. a reply to an already-confirmed expense saying 'זה היה "
+                "90, לא 60'. Use this, not revise_pending, when context says Target expense "
+                "state: confirmed."
+            ),
             "parameters": _TARGET_PARAMETER,
         },
     },
@@ -51,7 +59,10 @@ _WRITE_SPECS: list[dict] = [
         "type": "function",
         "function": {
             "name": "propose_delete",
-            "description": "Propose deleting ONE existing expense (the one replied to, or one found by search).",
+            "description": (
+                "Propose deleting ONE existing, already-confirmed expense (the one replied to, "
+                "or one found by search) -- e.g. a reply saying 'זו כפילות, תמחק בבקשה'."
+            ),
             "parameters": _TARGET_PARAMETER,
         },
     },
@@ -59,7 +70,12 @@ _WRITE_SPECS: list[dict] = [
         "type": "function",
         "function": {
             "name": "propose_settlement",
-            "description": "Propose a debt repayment in either direction: the sender repaid another member, or another member repaid the sender (for example 'החזרתי לירדן 20' or 'ירדן החזירה לי 20'). Balances only; not an expense. Do not ask for details already stated in the message.",
+            "description": (
+                "Propose a debt repayment in either direction: the sender repaid another member, "
+                "or another member repaid the sender (for example 'החזרתי ליוני 30' or 'נועה "
+                "החזירה לי 30'). Balances only; not an expense. Do not ask for details already "
+                "stated in the message."
+            ),
             "parameters": {"type": "object", "properties": {}, "additionalProperties": False},
         },
     },
@@ -67,9 +83,13 @@ _WRITE_SPECS: list[dict] = [
         "type": "function",
         "function": {
             "name": "revise_pending",
-            "description": "Revise a PENDING (not yet confirmed) expense with a free-text correction, replied to "
-            "directly (never one found by search: a pending expense is never a search result). Never use it when "
-            "context says Target expense state: confirmed.",
+            "description": (
+                "Revise a PENDING (not yet confirmed) expense with a free-text correction -- e.g. "
+                "'בעצם זה עלה 90' sent right after proposing an expense, before it was approved. "
+                "Only for the trusted pending target given in context, never one found by search "
+                "(a pending expense is never a search result). Never use it when context says "
+                "Target expense state: confirmed."
+            ),
             "parameters": {"type": "object", "properties": {}, "additionalProperties": False},
         },
     },

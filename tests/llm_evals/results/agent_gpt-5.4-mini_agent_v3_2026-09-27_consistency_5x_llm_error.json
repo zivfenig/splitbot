@@ -1,0 +1,77 @@
+{
+  "date": "2026-09-15",
+  "model": "gpt-5.4-mini",
+  "runs": 5,
+  "n_cases": 11,
+  "per_case": {
+    "1": {
+      "outcome_kind": "read_answer",
+      "passed": 0,
+      "total": 5,
+      "pass_rate": 0.0
+    },
+    "2": {
+      "outcome_kind": "read_answer",
+      "passed": 0,
+      "total": 5,
+      "pass_rate": 0.0
+    },
+    "3": {
+      "outcome_kind": "read_answer",
+      "passed": 0,
+      "total": 5,
+      "pass_rate": 0.0
+    },
+    "4": {
+      "outcome_kind": "pending_expense",
+      "passed": 0,
+      "total": 5,
+      "pass_rate": 0.0
+    },
+    "5": {
+      "outcome_kind": "pending_expense",
+      "passed": 0,
+      "total": 5,
+      "pass_rate": 0.0
+    },
+    "6": {
+      "outcome_kind": "pending_delete",
+      "passed": 0,
+      "total": 5,
+      "pass_rate": 0.0
+    },
+    "7": {
+      "outcome_kind": "no_action_explained",
+      "passed": 5,
+      "total": 5,
+      "pass_rate": 1.0
+    },
+    "8": {
+      "outcome_kind": "no_action_explained",
+      "passed": 5,
+      "total": 5,
+      "pass_rate": 1.0
+    },
+    "9": {
+      "outcome_kind": "pending_correction",
+      "passed": 0,
+      "total": 5,
+      "pass_rate": 0.0
+    },
+    "10": {
+      "outcome_kind": "no_confirmed_write",
+      "passed": 5,
+      "total": 5,
+      "pass_rate": 1.0
+    },
+    "11": {
+      "outcome_kind": "read_answer",
+      "passed": 0,
+      "total": 5,
+      "pass_rate": 0.0
+    }
+  },
+  "overall_pass_rate": 0.2727272727272727,
+  "total_cost_usd": "0",
+  "run_at": "2026-09-27T223136Z"
+}

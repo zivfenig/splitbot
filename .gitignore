@@ -7,6 +7,8 @@ __pycache__/
 .DS_Store
 *.sqlite3
 *.db
+*.db-shm
+*.db-wal
 splitbot-debug.log*
 DECISIONS.md
 PLAN.md

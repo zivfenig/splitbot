@@ -149,6 +149,18 @@ def _parse_reply(
     legacy_message_type = None
     if allow_legacy_message_type and isinstance(data, dict):
         legacy_message_type = data.pop("message_type", None)
+    if isinstance(data, dict):
+        # `participants.value.exclude` has no meaningful "unspecified" reading other than "no
+        # exclusions" ([]): unlike `only` (which is legitimately nullable, meaning "everyone"),
+        # a model sometimes writes `exclude: null` anyway -- most likely by over-generalizing the
+        # prompt's "unmentioned field -> null" convention to a nested field the schema never
+        # allows null for. Always normalized, for every prompt version: there is no case where
+        # null here should be treated as anything other than [].
+        participants = data.get("participants")
+        if isinstance(participants, dict):
+            value = participants.get("value")
+            if isinstance(value, dict) and value.get("exclude") is None:
+                value["exclude"] = []
     if normalize_numeric_amount and isinstance(data, dict):
         amount = data.get("amount")
         if isinstance(amount, dict):

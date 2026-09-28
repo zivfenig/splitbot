@@ -52,13 +52,19 @@ inputs to the same state machine.
 Example: the bot proposes "פיצה: זיו ומיכל, 120 (60/60) — לאשר?"; the user replies "זה היה 100
 ולא 120"; the agent updates the amount, re-confirms with the new split, and waits again.
 
-Runtime prompt versions are currently `agent_v4` and `extract_v2`. Corrections use the sparse
-`correct_v1` prompt and debt repayments use `settle_v1`. An explicit `✏️ תיקון`
-button is a deterministic exception to the Agent path: the Store remembers the selected expense
-for that `(chat_id, sender_id)`, and the sender's next message goes directly to the relevant write
-tool and sparse correction extractor. It may patch one or several fields; omitted fields are
-carried forward. The edit target expires after 15 minutes and is cleared after a successful
-proposal, approval, or rejection.
+Runtime prompt versions are currently `agent_v4` and `extract_v3`. Corrections use the sparse
+`correct_v2` prompt and debt repayments use `settle_v1`. Explicit `✏️ תיקון` and `🗑️ מחיקה`
+buttons are each a deterministic exception to the Agent path: the Store remembers the selected
+expense for that `(chat_id, sender_id)` (two independent targets, `pending_edits`/`pending_deletes`,
+so a sender can have one of each open at once on different expenses with no interaction between
+them), and the sender's next message skips the router and the Agent's own tool choice entirely.
+For edit, the message goes to the sparse correction extractor and may patch one or several
+fields; omitted fields are carried forward. For delete, the message's own wording never matters
+(deletion needs no extracted fields) -- any next message confirms it. Both targets expire after
+15 minutes; the edit target is cleared after a successful proposal, approval or rejection of that
+same expense; the delete target is cleared after one attempt regardless of outcome (retrying
+identical wording would never change a delete failure) or after that same expense is otherwise
+approved/rejected.
 
 ## Core rule: what the LLM does vs. what code does
 - LLM: understand messy text → structured data (extractor); choose tools (agent);
@@ -185,12 +191,13 @@ src/splitbot/
     jev_router.py
   tools/
     read_tools.py    # balances, search, summaries (math in code)
-    write_tools.py   # propose_expense / propose_correction / propose_delete
+    write_tools.py   # propose_expense / propose_correction / propose_delete / propose_settlement / revise_pending
   agent/
     agent.py         # tool-calling loop + guardrails
   bot/
     telegram_bot.py  # routing, workflow, confirmation buttons
 prompts/             # versioned agent/extract/correction/settlement prompts and CHANGELOG.md
+scripts/             # smoke_*.py (manual, real APIs); verify_concurrency_negative_controls.py (permanent, rerunnable)
 tests/
   unit/              # pure code. exact match. no network, no LLM.
   integration/       # parts together, fake LLM, mocked HTTP
@@ -200,7 +207,7 @@ tests/
     results/         # one file per run (component, model, prompt, split, date)
     run_router_eval.py, run_evals.py (extraction), run_agent_eval.py
   e2e/               # local Telegram Update → adapter → workflow → SQLite tests; scenarios.md is manual smoke
-docs/not_tested.md
+docs/                # not_tested.md; eval_v3_results.md
 ```
 
 ## Rules for tests
@@ -226,4 +233,5 @@ docs/not_tested.md
 - Extraction eval: `python -m tests.llm_evals.run_evals --split dev --model <model>`
 - Router eval: `python -m tests.llm_evals.run_router_eval --split dev --router embedding|jev`
 - Agent eval: `python -m tests.llm_evals.run_agent_eval`
+- Concurrency negative-control sweep: `python scripts/verify_concurrency_negative_controls.py`
 - Bot: `python -m splitbot.bot.telegram_bot`
