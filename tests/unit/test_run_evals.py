@@ -45,7 +45,9 @@ def person(i, amount):
 
 
 def exp(**kw):
-    return ExtractedExpense.model_validate({"message_type": "new", "confidence": "high", **kw})
+    return run_evals.ExpectedExtraction.model_validate(
+        {"message_type": "new", "confidence": "high", **kw}
+    )
 
 
 def make_case(expected, *, id="c1", message=None, accepted=None, expect_low=False):
@@ -196,11 +198,11 @@ SCORING_ROWS = [
     R("payer-ambiguous-same-candidates", {"payer": ev(amb(2, 5), "דני")}, {"payer": ev(amb(5, 2))}, "payer", True),
     R("payer-ambiguous-other-candidates", {"payer": ev(amb(2, 5), "דני")}, {"payer": ev(amb(2, 3))}, "payer", False),
     R("payer-ambiguous-vs-known", {"payer": ev(amb(2, 5), "דני")}, {"payer": ev(known(2))}, "payer", False),
-    R("participants-only-equals-only-with-author", ONLY_MICHAL,
-      {"participants": ev(parts(only=[known(1), known(4)]))}, "participants", True),
-    R("participants-author-exclusion-lost",
+    R("participants-only-does-not-equal-only-with-author", ONLY_MICHAL,
+      {"participants": ev(parts(only=[known(1), known(4)]))}, "participants", False),
+    R("participants-excluding-an-author-outside-only-is-equivalent",
       {"participants": ev(parts(only=[known(2), known(4)], exclude=[known(1)]), "עם דני ומיכל בלי זיו")},
-      {"participants": ev(parts(only=[known(2), known(4)]))}, "participants", False),
+      {"participants": ev(parts(only=[known(2), known(4)]))}, "participants", True),
     R("participants-missing-exclusion", {"participants": ev(parts(exclude=[known(2)]), "בלי דני")},
       {"participants": ev(parts())}, "participants", False),
     R("participants-ambiguous-same-sets", {"participants": ev(parts(exclude=[amb(2, 5)]), "בלי דני")},

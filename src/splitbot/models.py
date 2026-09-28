@@ -119,8 +119,8 @@ MemberRef = Annotated[KnownMember | Ambiguous, Field(discriminator="kind")]
 
 class Participants(Strict):
     """What the message says about who shares the expense. The LLM reports; CODE decides
-    (validation.resolve_participants): (author + `only`) - `exclude`, or everyone - `exclude`
-    without `only`; neither = everyone."""
+    (validation.resolve_participants): exact `only` - `exclude`, or everyone - `exclude`
+    without `only`; neither = everyone. Paying never implicitly adds the author to `only`."""
 
     only: list[MemberRef] | None = Field(default=None, min_length=1)  # "עם X" / "with X"
     exclude: list[MemberRef] = []  # "בלי X" / "without X"
@@ -146,7 +146,11 @@ class Evidenced(Strict, Generic[T]):
 
 
 class ExtractedExpense(Strict):
-    message_type: MessageType
+    """Financial fields extracted after the Agent has already chosen the operation.
+
+    Deliberately has no action/message type: choosing create/correct/delete is the Agent's job;
+    the extractor only returns fields the selected write tool may store.
+    """
     confidence: Confidence
     amount: Evidenced[str] | None = None  # text as written, e.g. "38.90"; money.py parses it
     # True when the amount was written in words or shorthand ("מאתיים", "2 אלף", "1.5K") and the
@@ -249,7 +253,8 @@ class ChangeKind(StrEnum):
 
 class ChangeRequest(BaseModel):
     """A correction or delete of a confirmed expense. It changes the ledger only after ALL the
-    relevant people approved (see policy.relevant_approvers), the requester included: nobody is
+    requester approved it. Permission to request the change is still checked against people
+    relevant to the original expense: nobody is
     approved automatically, everyone presses approve after seeing the exact numbers."""
 
     id: int | None = None
@@ -275,6 +280,32 @@ class ChangeRequest(BaseModel):
             raise ValueError("only a relevant person may request a change")
         if not set(self.approvals) <= set(self.required_approvers):
             raise ValueError("approvals can only come from the required approvers")
+        return self
+
+
+class Settlement(BaseModel):
+    """A confirmed repayment between two members. It changes balances, never spending totals."""
+
+    id: int | None = None
+    chat_id: int
+    message_id: int
+    from_user: int
+    to_user: int
+    amount: int
+    currency: Currency = Currency.ILS
+    requested_by: int
+    created_at: datetime = Field(default_factory=_utc_now)
+    state: ExpenseState = ExpenseState.pending_confirmation
+    version: int = 0
+
+    @model_validator(mode="after")
+    def is_valid_settlement(self) -> "Settlement":
+        if self.from_user == self.to_user:
+            raise ValueError("a settlement needs two different members")
+        if self.amount <= 0:
+            raise ValueError("settlement amount must be positive")
+        if self.requested_by not in (self.from_user, self.to_user):
+            raise ValueError("only one of the two settlement parties may report it")
         return self
 
 

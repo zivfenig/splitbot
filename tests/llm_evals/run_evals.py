@@ -56,6 +56,12 @@ class LeakageError(ValueError):
     """An eval message appears inside the prompt file (few-shot leakage)."""
 
 
+class ExpectedExtraction(ExtractedExpense):
+    """Historical action label plus the current storage-only extraction fields."""
+
+    message_type: MessageType
+
+
 @dataclass(frozen=True)
 class Case:
     id: str
@@ -64,7 +70,7 @@ class Case:
     sender_id: int
     message: str
     members: list[Member]  # the roster's members
-    expected: ExtractedExpense  # the human-verified answer
+    expected: ExpectedExtraction  # historical label + human-verified storage fields
     accepted_subcategories: list[Subcategory] | None  # scoring.subcategory_any_of
     expect_low: bool
 
@@ -156,7 +162,7 @@ def _to_case(row: dict, split: str, rosters: dict) -> Case:
     if row.get("roster") not in rosters:
         raise DatasetError(f"{case_id}: unknown roster {row.get('roster')!r}")
     try:
-        expected = ExtractedExpense.model_validate(row["expected"])
+        expected = ExpectedExtraction.model_validate(row["expected"])
         scoring = row["scoring"]
         any_of = scoring.get("subcategory_any_of")
         return Case(
@@ -249,7 +255,11 @@ def score_run(case: Case, extraction: Extraction) -> RunScore:
         fields=fields,
         failures=failures,
         full_correct=all(fields.values()),
-        predicted_type=actual.message_type.value if actual else None,
+        predicted_type=(
+            getattr(actual, "message_type", None).value
+            if getattr(actual, "message_type", None) is not None
+            else extraction.legacy_message_type
+        ),
         grounding_failure=None if actual is None or case.expected_is_ask else bool(extraction.issues),
         signature=_signature(case, extraction),
         cost_usd=cost,
@@ -313,8 +323,16 @@ def _checks(case: Case, extraction: Extraction) -> list[tuple[str, bool, str, st
     def add(field: str, ok: bool, expected_text: str, actual_text: str) -> None:
         out.append((field, act is not None and ok, expected_text, actual_text if act is not None else nothing))
 
-    add("type", act is not None and act.message_type == exp.message_type, exp.message_type.value,
-        act.message_type.value if act else nothing)
+    predicted_type = (
+        getattr(act, "message_type", None).value
+        if getattr(act, "message_type", None) is not None
+        else extraction.legacy_message_type
+    )
+    # Action accuracy is retained only for archived v1/v2 evals. The v3 runtime contract
+    # measures action choice in Agent evals, not in extraction evals.
+    if predicted_type is not None or extraction.prompt_version in {"extract_v1", "extract_v2"}:
+        add("type", predicted_type == exp.message_type.value, exp.message_type.value,
+            predicted_type or nothing)
     if exp.amount is not None:
         got = act.amount.value if act and act.amount else "none"
         add("amount", bool(act and act.amount) and _amount_key(got) == _amount_key(exp.amount.value),
@@ -364,7 +382,6 @@ def _signature(case: Case, extraction: Extraction) -> tuple:
     resolved, raw = _participants_view(act.participants.value, case) if act.participants else (None, None)
     return (
         extraction.status,
-        act.message_type,
         _amount_key(act.amount.value) if act.amount else None,
         act.amount_in_words,
         act.currency.value if act.currency else None,
@@ -481,7 +498,7 @@ def _section(ids: list[str], by_id: dict[str, Case], runs: dict[str, list[RunSco
         "n_cases": len(ids),
         "n_runs": len(pairs),
         "type": {
-            "accuracy": _mean([r.fields["type"] for r in scores]),
+            "accuracy": _mean([r.fields["type"] for r in scores if "type" in r.fields]),
             "false_expense_rate": _mean([r.predicted_type != "chat" for r in chat]),
             "missed_expense_rate": _mean([r.predicted_type == "chat" for r in other]),
         },
@@ -683,7 +700,9 @@ def main(
         return 2
 
     overall = json.loads(path.read_text(encoding="utf-8"))["report"]["overall"]
-    print(f"type accuracy {overall['type']['accuracy']:.3f} | false expense {overall['type']['false_expense_rate']} "
+    type_accuracy = overall["type"]["accuracy"]
+    type_text = "n/a" if type_accuracy is None else f"{type_accuracy:.3f}"
+    print(f"type accuracy {type_text} | false expense {overall['type']['false_expense_rate']} "
           f"| missed {overall['type']['missed_expense_rate']}")
     print(f"full-case accuracy {overall['extraction']['full_case_accuracy']:.3f} | consistency {overall['consistency']:.3f} "
           f"| grounding failures {overall['grounding_failure_rate']}")

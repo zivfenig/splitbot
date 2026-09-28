@@ -17,7 +17,7 @@ def _members(*names):
 def test_one_transfer_is_rendered_as_one_exact_line():
     result = {"balances": {"ILS": {"members": _members("זיו", "דני"),
                                    "transfers": [_transfer(2, "דני", 1, "זיו", "20")]}}}
-    assert _balances_sentence(result) == "דני משלם/ת לזיו: 20 ₪"
+    assert _balances_sentence(result) == "💰 מצב החובות\n\nמ־דני\nאל: זיו\nסכום: ₪20"
 
 
 def test_several_currencies_each_get_their_own_symbol_in_the_results_own_order():
@@ -28,10 +28,11 @@ def test_several_currencies_each_get_their_own_symbol_in_the_results_own_order()
         "XXX": {"members": _members("זיו", "מיכל"), "transfers": [_transfer(4, "מיכל", 1, "זיו", "5")]},
     }}
     assert _balances_sentence(result) == (
-        "דני משלם/ת לזיו: 20 ₪\n"
-        "משה משלם/ת לזיו: 15.99 $\n"
-        "מיכל משלם/ת לזיו: 10 €\n"
-        "מיכל משלם/ת לזיו: 5 XXX"  # an unrecognized currency code falls back to showing itself
+        "💰 מצב החובות\n\n"
+        "מ־דני\nאל: זיו\nסכום: ₪20\n\n"
+        "מ־משה\nאל: זיו\nסכום: $15.99\n\n"
+        "מ־מיכל\nאל: זיו\nסכום: €10\n\n"
+        "מ־מיכל\nאל: זיו\nסכום: XXX5"
     )
 
 
@@ -53,7 +54,8 @@ def test_multiple_transfers_in_one_currency_all_appear_joined_by_newline_in_orde
         ],
     }}}
     assert _balances_sentence(result) == (
-        "מיכל משלם/ת למשה: 140 ₪\n"
-        "זיו משלם/ת לדני: 20 ₪\n"
-        "מיכל משלם/ת לדני: 20 ₪"
+        "💰 מצב החובות\n\n"
+        "מ־מיכל\nאל: משה\nסכום: ₪140\n\n"
+        "מ־זיו\nאל: דני\nסכום: ₪20\n\n"
+        "מ־מיכל\nאל: דני\nסכום: ₪20"
     )

@@ -305,6 +305,32 @@ def test_search_and_summary_read_only_confirmed_expenses():
     assert store.spending_summary(3, by="category") == {}
 
 
+def test_recent_search_results_are_isolated_by_both_chat_and_user():
+    store = Store(":memory:")
+    expense = save_confirmed(store, chat_id=1)
+    now = datetime(2026, 3, 1, 12, 0, tzinfo=timezone.utc)
+
+    store.remember_search_results(1, 10, [expense.id], now=now)
+
+    assert store.recent_search_results(1, 10, now=now) == [expense.id]
+    assert store.recent_search_results(1, 11, now=now) == []
+    assert store.recent_search_results(2, 10, now=now) == []
+
+
+def test_search_results_are_unavailable_after_the_selection_window_expires():
+    store = Store(":memory:")
+    expense = save_confirmed(store)
+    searched_at = datetime(2026, 3, 1, 12, 0, tzinfo=timezone.utc)
+    max_age = timedelta(minutes=15)
+
+    store.remember_search_results(1, 10, [expense.id], now=searched_at)
+
+    assert store.recent_search_results(1, 10, now=searched_at + max_age, max_age=max_age) == [expense.id]
+    assert store.recent_search_results(
+        1, 10, now=searched_at + max_age + timedelta(microseconds=1), max_age=max_age
+    ) == []
+
+
 # --- 5 --------------------------------------------------------------------------------------
 
 
@@ -797,3 +823,36 @@ def test_revise_pending_expense_after_expiry_is_refused_and_the_record_expires()
         with pytest.raises(IllegalTransition):  # a later attempt, with or without a clock, never revises it
             store.revise_pending_expense(target.id, replacement, now=None)
         assert store.get_expense(target.id).state == ExpenseState.expired
+
+
+# --- 12: recent_messages ----------------------------------------------------------------------
+
+
+def test_recent_messages_returns_the_last_n_oldest_first():
+    store = Store(":memory:")
+    chat_a, chat_b = 1, 2
+
+    for i in range(10):
+        store.log_message(chat_a, f"user{i}", f"text{i}")
+    for i in range(3):
+        store.log_message(chat_b, f"other{i}", f"btext{i}")
+
+    recent = store.recent_messages(chat_a, limit=4)
+    assert recent == ["user6: text6", "user7: text7", "user8: text8", "user9: text9"]  # last 4, oldest first
+    assert all("other" not in line and "btext" not in line for line in recent)  # chat B never appears in chat A
+
+    recent_b = store.recent_messages(chat_b, limit=8)
+    assert recent_b == ["other0: btext0", "other1: btext1", "other2: btext2"]  # fewer than limit: all of them
+    assert all("user" not in line for line in recent_b)  # chat isolation the other way
+
+
+def test_recent_messages_with_no_history_or_a_non_positive_limit_is_empty():
+    store = Store(":memory:")
+    assert store.recent_messages(1) == []  # an empty chat: no history logged at all
+
+    store.log_message(1, "זיו", "פיצה 50")
+    store.log_message(1, "bot", "אישרת?")
+    assert store.recent_messages(1) == ["זיו: פיצה 50", "bot: אישרת?"]  # sanity: real history does exist
+    assert store.recent_messages(1, limit=0) == []
+    assert store.recent_messages(1, limit=-1) == []
+    assert store.recent_messages(1, limit=-100) == []

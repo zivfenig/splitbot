@@ -19,6 +19,7 @@ produce both an expense and a change request, even from two threads at once.
 If COMMIT itself fails, the transaction is rolled back and the Store stays usable.
 """
 
+import json
 import sqlite3
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -32,6 +33,8 @@ from splitbot.models import (
     Currency,
     Expense,
     ExpenseState,
+    Member,
+    Settlement,
     Subcategory,
 )
 from splitbot.state import IllegalTransition, approval_outcome, is_expired, transition
@@ -41,6 +44,39 @@ CREATE TABLE IF NOT EXISTS processed_messages (
     chat_id    INTEGER NOT NULL,
     message_id INTEGER NOT NULL,
     PRIMARY KEY (chat_id, message_id)
+);
+CREATE TABLE IF NOT EXISTS chat_members (
+    chat_id  INTEGER NOT NULL,
+    user_id  INTEGER NOT NULL,
+    name     TEXT NOT NULL,
+    PRIMARY KEY (chat_id, user_id)
+);
+CREATE TABLE IF NOT EXISTS chat_log (
+    id       INTEGER PRIMARY KEY AUTOINCREMENT,
+    chat_id  INTEGER NOT NULL,
+    sender   TEXT NOT NULL,
+    text     TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS bot_messages (
+    chat_id              INTEGER NOT NULL,
+    telegram_message_id  INTEGER NOT NULL,
+    kind                 TEXT NOT NULL,
+    target_id            INTEGER NOT NULL,
+    PRIMARY KEY (chat_id, telegram_message_id)
+);
+CREATE TABLE IF NOT EXISTS recent_searches (
+    chat_id     INTEGER NOT NULL,
+    user_id     INTEGER NOT NULL,
+    expense_ids TEXT NOT NULL,
+    created_at  TEXT NOT NULL,
+    PRIMARY KEY (chat_id, user_id)
+);
+CREATE TABLE IF NOT EXISTS pending_edits (
+    chat_id     INTEGER NOT NULL,
+    user_id     INTEGER NOT NULL,
+    expense_id  INTEGER NOT NULL,
+    created_at  TEXT NOT NULL,
+    PRIMARY KEY (chat_id, user_id)
 );
 CREATE TABLE IF NOT EXISTS message_records (
     chat_id    INTEGER NOT NULL,
@@ -68,6 +104,15 @@ CREATE TABLE IF NOT EXISTS change_requests (
     data       TEXT NOT NULL,
     UNIQUE (chat_id, message_id)
 );
+CREATE TABLE IF NOT EXISTS settlements (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    chat_id    INTEGER NOT NULL,
+    message_id INTEGER NOT NULL,
+    state      TEXT NOT NULL,
+    version    INTEGER NOT NULL DEFAULT 0,
+    data       TEXT NOT NULL,
+    UNIQUE (chat_id, message_id)
+);
 """
 
 _PENDING = ExpenseState.pending_confirmation.value
@@ -90,7 +135,7 @@ class NotRelevantApprover(ValueError):
 class Expired:
     """A pending record that `expire_stale` moved to `expired`."""
 
-    kind: Literal["expense", "change_request"]
+    kind: Literal["expense", "change_request", "settlement"]
     id: int
     chat_id: int
     message_id: int
@@ -134,6 +179,177 @@ class Store:
             "SELECT 1 FROM processed_messages WHERE chat_id = ? AND message_id = ?", (chat_id, message_id)
         ).fetchone()
         return row is not None
+
+    def upsert_member(self, chat_id: int, user_id: int, name: str) -> None:
+        """Remember (or refresh) this user's display name for this chat: the roster is built
+        automatically, not from a pre-filled config file -- the first message from a given
+        (chat_id, user_id) registers them, so a group just adds the bot and starts using it,
+        without anyone editing a member list by hand. Safe to call on every incoming message
+        (a no-op cost-wise beyond the write): a name change on Telegram updates it here too."""
+        with self._tx():
+            self._db.execute(
+                "INSERT INTO chat_members (chat_id, user_id, name) VALUES (?, ?, ?) "
+                "ON CONFLICT (chat_id, user_id) DO UPDATE SET name = excluded.name",
+                (chat_id, user_id, name),
+            )
+
+    def get_members(self, chat_id: int) -> list[Member]:
+        """Everyone ever seen (via `upsert_member`) in this chat, in the order first seen. Empty
+        for a chat nobody has posted in yet."""
+        rows = self._db.execute(
+            "SELECT user_id, name FROM chat_members WHERE chat_id = ? ORDER BY rowid", (chat_id,)
+        ).fetchall()
+        return [Member(id=user_id, name=name) for user_id, name in rows]
+
+    def log_message(self, chat_id: int, sender: str, text: str) -> None:
+        """Append one line to this chat's conversational history: `sender` is a display label
+        (a member's name, or "bot" for the bot's own outgoing text), `text` the message content.
+        Used ONLY as background context for the agent's understanding (see `Agent.run_turn`'s
+        `recent_messages`); it is NEVER a source of financial data, and never used for reply
+        targeting (that is `bot_messages`'/`get_expense_by_message`'s job). Every incoming message
+        is logged here regardless of routing outcome, and so is the bot's own reply, so the
+        history reflects both sides of the conversation."""
+        with self._tx():
+            self._db.execute("INSERT INTO chat_log (chat_id, sender, text) VALUES (?, ?, ?)", (chat_id, sender, text))
+
+    def recent_messages(self, chat_id: int, limit: int = 8) -> list[str]:
+        """The last `limit` lines logged for this chat via `log_message`, OLDEST FIRST, each as
+        "<sender>: <text>". Empty for a chat with no history yet, or `limit <= 0`."""
+        if limit <= 0:
+            return []
+        rows = self._db.execute(
+            "SELECT sender, text FROM chat_log WHERE chat_id = ? ORDER BY id DESC LIMIT ?", (chat_id, limit)
+        ).fetchall()
+        return [f"{sender}: {text}" for sender, text in reversed(rows)]
+
+    def latest_pending_expense_for(
+        self, chat_id: int, sender_id: int, *, now: datetime, expiry: timedelta
+    ) -> int | None:
+        """The sender's most recently created, still-live pending expense in this chat.
+
+        This is the conversational fallback used when Telegram did not attach a reply to the
+        confirmation message. Older pending proposals do not make the immediately preceding
+        proposal ambiguous, while expired proposals are never selected. Explicit Telegram reply
+        targets still take precedence in the bot. The method is read-only: normal confirmation,
+        revision and the expiry sweeper remain responsible for state transitions.
+        """
+        rows = self._db.execute(
+            "SELECT id, state, version, deleted, data FROM expenses "
+            "WHERE chat_id = ? AND state = ? AND deleted = 0 ORDER BY id DESC",
+            (chat_id, _PENDING),
+        ).fetchall()
+        for expense in (self._to_expense(row) for row in rows):
+            if expense.author_id == sender_id and not is_expired(expense.created_at, now, expiry):
+                return expense.id
+        return None
+
+    def record_bot_message(self, chat_id: int, telegram_message_id: int, kind: str, target_id: int) -> None:
+        """Remember that the bot's own message `telegram_message_id` in `chat_id` is ABOUT the
+        pending `kind` ("expense" | "change_request") record `target_id`, so a later free-text
+        reply to that message can be resolved back to the record it was confirming (Telegram gives
+        us only the replied-to message's id, never our own application ids). Overwrites any
+        earlier record for the same (chat_id, telegram_message_id): the bot never posts twice about
+        the same target under the same message id in practice, but a resend/edit is harmless
+        either way. Not compare-and-swap: this is a lookup table for reply targeting, not part of
+        the ledger's own consistency guarantees."""
+        with self._tx():
+            self._db.execute(
+                "INSERT INTO bot_messages (chat_id, telegram_message_id, kind, target_id) VALUES (?, ?, ?, ?) "
+                "ON CONFLICT (chat_id, telegram_message_id) DO UPDATE SET kind = excluded.kind, target_id = excluded.target_id",
+                (chat_id, telegram_message_id, kind, target_id),
+            )
+
+    def get_bot_message(self, chat_id: int, telegram_message_id: int) -> tuple[str, int] | None:
+        """(kind, target_id) recorded by `record_bot_message` for this bot message, or None when
+        this message id was never recorded (not a bot confirmation, or from before this feature)."""
+        row = self._db.execute(
+            "SELECT kind, target_id FROM bot_messages WHERE chat_id = ? AND telegram_message_id = ?",
+            (chat_id, telegram_message_id),
+        ).fetchone()
+        return (row[0], row[1]) if row else None
+
+    def remember_search_results(
+        self, chat_id: int, user_id: int, expense_ids: list[int], *, now: datetime
+    ) -> None:
+        """Remember one user's latest ordered confirmed-expense search for a follow-up turn."""
+        unique = list(dict.fromkeys(expense_ids))[:20]
+        with self._tx():
+            if not unique:
+                self._db.execute(
+                    "DELETE FROM recent_searches WHERE chat_id = ? AND user_id = ?", (chat_id, user_id)
+                )
+                return
+            self._db.execute(
+                "INSERT INTO recent_searches (chat_id, user_id, expense_ids, created_at) VALUES (?, ?, ?, ?) "
+                "ON CONFLICT (chat_id, user_id) DO UPDATE SET expense_ids = excluded.expense_ids, "
+                "created_at = excluded.created_at",
+                (chat_id, user_id, json.dumps(unique), now.isoformat()),
+            )
+
+    def recent_search_results(
+        self, chat_id: int, user_id: int, *, now: datetime, max_age: timedelta = timedelta(minutes=15)
+    ) -> list[int]:
+        """The ordered ids from this user's recent search, or [] after the short selection window."""
+        row = self._db.execute(
+            "SELECT expense_ids, created_at FROM recent_searches WHERE chat_id = ? AND user_id = ?",
+            (chat_id, user_id),
+        ).fetchone()
+        if row is None:
+            return []
+        created_at = datetime.fromisoformat(row[1])
+        if now - created_at > max_age:
+            return []
+        ids = json.loads(row[0])
+        valid = []
+        for expense_id in ids:
+            try:
+                expense = self.get_expense(expense_id)
+            except KeyError:
+                continue
+            if expense.chat_id == chat_id and expense.state == ExpenseState.confirmed and not expense.deleted:
+                valid.append(expense_id)
+        return valid
+
+    def begin_pending_edit(self, chat_id: int, user_id: int, expense_id: int, *, now: datetime) -> None:
+        """Remember that this user's next message in this chat is a patch for one expense."""
+        with self._tx():
+            self._db.execute(
+                "INSERT INTO pending_edits (chat_id, user_id, expense_id, created_at) VALUES (?, ?, ?, ?) "
+                "ON CONFLICT (chat_id, user_id) DO UPDATE SET expense_id = excluded.expense_id, "
+                "created_at = excluded.created_at",
+                (chat_id, user_id, expense_id, now.isoformat()),
+            )
+
+    def pending_edit_target(
+        self, chat_id: int, user_id: int, *, now: datetime, max_age: timedelta = timedelta(minutes=15)
+    ) -> int | None:
+        """The explicit edit-button target, or None when missing, stale, or no longer usable."""
+        row = self._db.execute(
+            "SELECT expense_id, created_at FROM pending_edits WHERE chat_id = ? AND user_id = ?",
+            (chat_id, user_id),
+        ).fetchone()
+        if row is None:
+            return None
+        if now - datetime.fromisoformat(row[1]) > max_age:
+            self.clear_pending_edit(chat_id, user_id)
+            return None
+        try:
+            expense = self.get_expense(row[0])
+        except KeyError:
+            self.clear_pending_edit(chat_id, user_id)
+            return None
+        if expense.chat_id != chat_id or expense.deleted or expense.state not in (
+            ExpenseState.pending_confirmation, ExpenseState.confirmed,
+        ):
+            self.clear_pending_edit(chat_id, user_id)
+            return None
+        return expense.id
+
+    def clear_pending_edit(self, chat_id: int, user_id: int) -> None:
+        with self._tx():
+            self._db.execute(
+                "DELETE FROM pending_edits WHERE chat_id = ? AND user_id = ?", (chat_id, user_id)
+            )
 
     def mark_processed(self, chat_id: int, message_id: int) -> bool:
         """True the first time this message is seen, False for every repeat. For messages that
@@ -294,7 +510,69 @@ class Store:
             per_user = result.setdefault(expense.currency, {})
             for share in expense.shares:
                 per_user[share.user_id] = per_user.get(share.user_id, 0) + share.paid - share.owed
+        for settlement in self._live_settlements(chat_id):
+            per_user = result.setdefault(settlement.currency, {})
+            per_user[settlement.from_user] = per_user.get(settlement.from_user, 0) + settlement.amount
+            per_user[settlement.to_user] = per_user.get(settlement.to_user, 0) - settlement.amount
         return result
+
+    # --- settlements (repayments affect balances, not expenses) -------------
+
+    def create_settlement(self, settlement: Settlement) -> Settlement:
+        stored = settlement.model_copy(update={"state": ExpenseState.pending_confirmation, "version": 0})
+        try:
+            with self._tx():
+                self._mark(stored.chat_id, stored.message_id)
+                self._record(stored.chat_id, stored.message_id, "settlement")
+                cursor = self._db.execute(
+                    "INSERT INTO settlements (chat_id, message_id, state, version, data) VALUES (?, ?, ?, 0, ?)",
+                    (stored.chat_id, stored.message_id, _PENDING, stored.model_dump_json(exclude={"id", "version"})),
+                )
+        except sqlite3.IntegrityError as exc:
+            raise DuplicateMessage(f"message {stored.chat_id}:{stored.message_id} already has a record") from exc
+        return stored.model_copy(update={"id": cursor.lastrowid})
+
+    def get_settlement(self, settlement_id: int) -> Settlement:
+        row = self._db.execute(
+            "SELECT id, state, version, data FROM settlements WHERE id = ?", (settlement_id,)
+        ).fetchone()
+        if row is None:
+            raise KeyError(f"no settlement {settlement_id}")
+        return self._to_settlement(row)
+
+    def get_settlement_by_message(self, chat_id: int, message_id: int) -> Settlement | None:
+        """The settlement created by this Telegram message, used for idempotent recovery."""
+        row = self._db.execute(
+            "SELECT id, state, version, data FROM settlements WHERE chat_id = ? AND message_id = ?",
+            (chat_id, message_id),
+        ).fetchone()
+        return None if row is None else self._to_settlement(row)
+
+    def respond_settlement(
+        self, settlement_id: int, user_id: int, approve: bool, now: datetime | None = None
+    ) -> Settlement:
+        expired = False
+        with self._tx():
+            settlement = self.get_settlement(settlement_id)
+            if user_id != settlement.requested_by:
+                raise NotRelevantApprover(f"user {user_id} did not request settlement {settlement_id}")
+            if settlement.state != ExpenseState.pending_confirmation:
+                raise IllegalTransition(f"settlement is already {settlement.state.value}")
+            if now is not None and is_expired(settlement.created_at, now):
+                new_state = ExpenseState.expired
+                expired = True
+            else:
+                new_state = ExpenseState.confirmed if approve else ExpenseState.rejected
+            cursor = self._db.execute(
+                "UPDATE settlements SET state = ?, version = version + 1 "
+                "WHERE id = ? AND state = ? AND version = ?",
+                (new_state.value, settlement_id, _PENDING, settlement.version),
+            )
+            if cursor.rowcount != 1:
+                raise StateConflict(f"settlement {settlement_id} changed while we were updating it")
+        if expired:
+            raise IllegalTransition(f"settlement {settlement_id} expired")
+        return settlement.model_copy(update={"state": new_state, "version": settlement.version + 1})
 
     def search_expenses(
         self,
@@ -402,6 +680,14 @@ class Store:
             raise KeyError(f"no change request {request_id}")
         return self._to_request(row)
 
+    def get_change_request_by_message(self, chat_id: int, message_id: int) -> ChangeRequest | None:
+        """The change request created by this message, used for idempotent recovery."""
+        row = self._db.execute(
+            "SELECT id, state, version, data FROM change_requests WHERE chat_id = ? AND message_id = ?",
+            (chat_id, message_id),
+        ).fetchone()
+        return None if row is None else self._to_request(row)
+
     def respond(self, request_id: int, user_id: int, approve: bool, now: datetime | None = None) -> ChangeRequest:
         """Record a required approver's vote and resolve the request with `state.approval_outcome`.
         Not a required approver -> NotRelevantApprover. Request no longer pending ->
@@ -446,25 +732,33 @@ class Store:
 
     # --- expiry ---------------------------------------------------------------
 
-    def expire_stale(self, now: datetime, expiry: timedelta | None = None) -> list[Expired]:
+    def expire_stale(
+        self, now: datetime, expiry: timedelta | None = None, *, chat_id: int | None = None
+    ) -> list[Expired]:
         """Mark every expense and change request still pending_confirmation whose
         `state.is_expired(created_at, now, expiry)` as expired (compare-and-swap, one
         transaction) and return them (the bot posts a one-line notice per item; nothing is
         written to the ledger). `expiry` defaults to `config.pending_expiry()`."""
         expired: list[Expired] = []
         with self._tx():
-            for expense in self._all("expenses", _PENDING):
+            for expense in self._all("expenses", _PENDING, chat_id=chat_id):
                 if is_expired(expense.created_at, now, expiry) and self._db.execute(
                     "UPDATE expenses SET state = ?, version = version + 1 WHERE id = ? AND state = ?",
                     (ExpenseState.expired.value, expense.id, _PENDING),
                 ).rowcount == 1:
                     expired.append(Expired("expense", expense.id, expense.chat_id, expense.message_id))
-            for request in self._all("change_requests", _PENDING):
+            for request in self._all("change_requests", _PENDING, chat_id=chat_id):
                 if is_expired(request.created_at, now, expiry) and self._db.execute(
                     "UPDATE change_requests SET state = ?, version = version + 1 WHERE id = ? AND state = ?",
                     (ExpenseState.expired.value, request.id, _PENDING),
                 ).rowcount == 1:
                     expired.append(Expired("change_request", request.id, request.chat_id, request.message_id))
+            for settlement in self._all("settlements", _PENDING, chat_id=chat_id):
+                if is_expired(settlement.created_at, now, expiry) and self._db.execute(
+                    "UPDATE settlements SET state = ?, version = version + 1 WHERE id = ? AND state = ?",
+                    (ExpenseState.expired.value, settlement.id, _PENDING),
+                ).rowcount == 1:
+                    expired.append(Expired("settlement", settlement.id, settlement.chat_id, settlement.message_id))
         return expired
 
     # --- internals ------------------------------------------------------------
@@ -488,14 +782,31 @@ class Store:
         ).fetchall()
         return [self._to_expense(r) for r in rows]
 
-    def _all(self, table: str, state: str) -> list:
+    def _live_settlements(self, chat_id: int) -> list[Settlement]:
+        rows = self._db.execute(
+            "SELECT id, state, version, data FROM settlements WHERE chat_id = ? AND state = ? ORDER BY id",
+            (chat_id, _CONFIRMED),
+        ).fetchall()
+        return [self._to_settlement(row) for row in rows]
+
+    def _all(self, table: str, state: str, *, chat_id: int | None = None) -> list:
+        scope = " AND chat_id = ?" if chat_id is not None else ""
+        parameters = (state, chat_id) if chat_id is not None else (state,)
         if table == "expenses":
             rows = self._db.execute(
-                "SELECT id, state, version, deleted, data FROM expenses WHERE state = ?", (state,)
+                "SELECT id, state, version, deleted, data FROM expenses WHERE state = ?" + scope,
+                parameters,
             ).fetchall()
             return [self._to_expense(r) for r in rows]
+        if table == "settlements":
+            rows = self._db.execute(
+                "SELECT id, state, version, data FROM settlements WHERE state = ?" + scope,
+                parameters,
+            ).fetchall()
+            return [self._to_settlement(r) for r in rows]
         rows = self._db.execute(
-            "SELECT id, state, version, data FROM change_requests WHERE state = ?", (state,)
+            "SELECT id, state, version, data FROM change_requests WHERE state = ?" + scope,
+            parameters,
         ).fetchall()
         return [self._to_request(r) for r in rows]
 
@@ -552,4 +863,11 @@ class Store:
         request_id, state, version, data = row
         return ChangeRequest.model_validate_json(data).model_copy(
             update={"id": request_id, "state": ExpenseState(state), "version": version}
+        )
+
+    @staticmethod
+    def _to_settlement(row: tuple) -> Settlement:
+        settlement_id, state, version, data = row
+        return Settlement.model_validate_json(data).model_copy(
+            update={"id": settlement_id, "state": ExpenseState(state), "version": version}
         )

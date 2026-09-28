@@ -3,7 +3,7 @@
 Add to this file in every stage. It feeds the "what's NOT tested" section of the write-up.
 
 ## Out of scope
-Receipt photos, voice notes, settlements between members, follow-up messages without a reply,
+Receipt photos, voice notes, follow-up messages without a reply,
 load testing over HTTP.
 
 ## Known limits (by design)
@@ -20,17 +20,15 @@ load testing over HTTP.
   amount** ("1.200", case-36: asked in 3/3 runs with v1, 0/3 with v2). No further prompt round;
   the unconditional confirmation shows the exact number before anything is stored, so a human
   catches it.
-- **The extractor can drop the sender from participants** in a message like "הזמנתי סושי לי
-  ולדני, יצא 120" ("sushi for me and Dani"), attributing the whole amount to the other person
-  instead of splitting it (agent eval scenario 5, gpt-5.4-mini, real run 2026-09-27, 0/5).
-  Same reasoning as the earlier gpt-4o-mini extraction miss (case-4): the confirmation shows
-  the exact split before anything is written, so the sender sees the wrong split and can
-  correct or reject it. No code fix; not evidence of a specific model being worse, just the
-  same known class of extraction miss.
-- **A settlement is read as a new expense** ("העברתי לך 50 בביט", case-25, by every model
-  tried). Settlements between members are out of scope; the confirmation shows the number and
-  the user rejects it.
-- **Subcategory, description and message_type are inferred**, so they carry no evidence.
+- **Participant language outside the protected common phrases can still be misinterpreted.**
+  Code now enforces exact `only`, defaults to the full roster, understands unique clean aliases
+  such as `ירדן` for `❤️ ירדן`, and protects common `של/רק/עם/כל הבית` forms. More complex or
+  implicit phrasing still relies on the extractor, so the confirmation remains the final guard.
+- **Settlement recognition still depends on the Agent.** Once `propose_settlement` is selected,
+  code verifies sender, recipient, currency, amount and the matching open debt; confirmation is
+  unconditional. Unusual repayment wording may still be routed to the wrong tool and rejected.
+- **Subcategory and description are inferred**, so they carry no evidence. Action selection is
+  owned by the Agent and is no longer part of extraction.
 - **Participants have ONE evidence string for the whole field, not one per member**, so a
   person wrongly added to `only` or `exclude` can still pass grounding (the evidence exists,
   it just does not cover that person).
@@ -65,6 +63,8 @@ load testing over HTTP.
   use threads on one database file, on one machine).
 - Settlement transfers use a greedy rule: for large groups the number of transfers is not
   guaranteed to be the true minimum (the money is always exact).
-- The free-text approval loop, the `auto` grace window, the expiry notice in the group and
-  `/pending` are built in later stages and are not covered yet.
+- The `auto` grace window, the expiry notice in the group and `/pending` are built in later
+  stages and are not covered yet. The free-text revision loop is covered deterministically,
+  including a missing Telegram Reply, stale pending records and next-turn selection after search;
+  the current `agent_v4` prompt still needs a fresh real-model consistency run.
 - An unknown expense id in the store raises `KeyError`; not asserted.

@@ -65,7 +65,6 @@ def run_parallel(jobs):
 def extraction_reply(amount: str, description: str = "פיצה") -> str:
     return json.dumps(
         {
-            "message_type": "new",
             "confidence": "high",
             "amount": {"value": amount, "evidence": amount, "source": "message"},
             "subcategory": "restaurant",
@@ -192,7 +191,6 @@ def test_the_same_message_twice_in_parallel_creates_one_expense(tmp_path):
         "correction": (
             json.dumps(
                 {
-                    "message_type": "correction",
                     "confidence": "high",
                     "amount": {"value": "300", "evidence": "300", "source": "message"},
                     "refers_to": {"value": "פיצה", "evidence": "פיצה", "source": "message"},
@@ -204,7 +202,6 @@ def test_the_same_message_twice_in_parallel_creates_one_expense(tmp_path):
         "delete": (
             json.dumps(
                 {
-                    "message_type": "delete",
                     "confidence": "high",
                     "refers_to": {"value": "פיצה", "evidence": "פיצה", "source": "message"},
                 },

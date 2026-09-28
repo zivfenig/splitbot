@@ -31,7 +31,6 @@ def test_every_subcategory_maps_to_its_agreed_main_category():
 
 def valid_payload() -> dict:
     return {
-        "message_type": "new",
         "confidence": "high",
         "amount": {"value": "140", "evidence": "140", "source": "message"},
         "currency": {"value": "ILS", "evidence": None, "source": "default"},

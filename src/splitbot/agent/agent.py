@@ -4,6 +4,7 @@ money arithmetic for a write, and a write can only reach the ledger as a PENDING
 `WriteTools` (extractor -> validators -> confirmation -> ledger)."""
 
 import json
+import logging
 import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -20,6 +21,7 @@ from splitbot.tools.write_tools import Proposal, WriteTools
 
 MAX_STEPS = 5  # tool calls executed per turn
 FALLBACK_TEXT = "לא הצלחתי לענות על זה בצורה בטוחה. אפשר לנסח שוב או לשאול אחרת?"
+_log = logging.getLogger(__name__)
 
 _NUMBER = re.compile(r"(?<!\w)-?\d+(?:[.,]\d+)*")
 _TARGET_PARAMETER = {
@@ -40,7 +42,8 @@ _WRITE_SPECS: list[dict] = [
         "type": "function",
         "function": {
             "name": "propose_correction",
-            "description": "Propose changing the amount of an existing expense (the one replied to, or one found by search).",
+            "description": "Propose changing any details of a CONFIRMED expense (the one replied to, or one found by search). "
+            "Use this, not revise_pending, when context says Target expense state: confirmed.",
             "parameters": _TARGET_PARAMETER,
         },
     },
@@ -55,9 +58,18 @@ _WRITE_SPECS: list[dict] = [
     {
         "type": "function",
         "function": {
+            "name": "propose_settlement",
+            "description": "Propose a debt repayment in either direction: the sender repaid another member, or another member repaid the sender (for example 'החזרתי לירדן 20' or 'ירדן החזירה לי 20'). Balances only; not an expense. Do not ask for details already stated in the message.",
+            "parameters": {"type": "object", "properties": {}, "additionalProperties": False},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "revise_pending",
             "description": "Revise a PENDING (not yet confirmed) expense with a free-text correction, replied to "
-            "directly (never one found by search: a pending expense is never a search result).",
+            "directly (never one found by search: a pending expense is never a search result). Never use it when "
+            "context says Target expense state: confirmed.",
             "parameters": {"type": "object", "properties": {}, "additionalProperties": False},
         },
     },
@@ -140,12 +152,36 @@ def _balances_sentence(get_balances_result: dict) -> str:
     itself when it is not one of ILS/USD/EUR), lines joined with "\\n". A currency with no
     transfers contributes nothing. When there are no transfers in ANY currency (nothing is owed
     to anyone), the fixed sentence "אין חובות פתוחים כרגע." is returned instead."""
-    lines = []
+    lines = ["💰 מצב החובות"]
     for currency, data in get_balances_result["balances"].items():
         symbol = _CURRENCY_SYMBOLS.get(currency, currency)
         for transfer in data["transfers"]:
-            lines.append(f"{transfer['from_name']} משלם/ת ל{transfer['to_name']}: {transfer['amount']} {symbol}")
-    return "\n".join(lines) if lines else "אין חובות פתוחים כרגע."
+            lines.append(
+                f"\nמ־{transfer['from_name']}\nאל: {transfer['to_name']}\nסכום: {symbol}{transfer['amount']}"
+            )
+    return "\n".join(lines) if len(lines) > 1 else "אין חובות פתוחים כרגע."
+
+
+def _member_statement_text(result: dict) -> str:
+    symbols = {"ILS": "₪", "USD": "$", "EUR": "€"}
+    lines = [f"📋 פירוט עבור {result['member_name']}"]
+    if result["obligations"]:
+        lines.append("\nהחלק שלך בהוצאות ששילמו אחרים:")
+        for item in result["obligations"]:
+            lines.append(
+                f"• {item['description']} ({item['spent_on']})\n"
+                f"  אל: {item['to_name']} · {symbols.get(item['currency'], item['currency'])}{item['amount']}"
+            )
+    else:
+        lines.append("\nאין הוצאות שבהן מישהו אחר שילם עבורך.")
+    if result["settlements"]:
+        lines.append("\nלאחר קיזוז כל ההוצאות:")
+        for transfer in result["settlements"]:
+            symbol = symbols.get(transfer["currency"], transfer["currency"])
+            lines.append(f"• {transfer['from_name']} → {transfer['to_name']} · {symbol}{transfer['amount']}")
+    else:
+        lines.append("\nלאחר הקיזוז אין יתרה פתוחה.")
+    return "\n".join(lines)
 
 
 class Agent:
@@ -184,12 +220,25 @@ class Agent:
         message_id: int,
         text: str,
         reply_target_expense_id: int | None = None,
+        recent_messages: list[str] | None = None,
+        prior_search_expense_ids: list[int] | None = None,
     ) -> AgentReply:
         """One user message -> one reply.
 
         Messages sent to the model: [system, user]. The system message is the prompt file followed
         by a code-built context block: today's date (from the clock, "YYYY-MM-DD"), the roster
-        ("<id> <name>" per member), the sender (id and name) and the replied-to expense id or "none".
+        ("<id> <name>" per member), the sender (id and name) and the replied-to expense id or
+        "none". When `recent_messages` is given and non-empty (each already formatted "<sender>:
+        <text>", oldest first -- typically `Store.recent_messages`' own output, STRICTLY BEFORE
+        this turn's own message), it is appended as one more clearly-labeled block, "Recent
+        conversation (background only -- for understanding context; it is NEVER a source of
+        amounts, participants or any other fact used in a write: those always come only from THIS
+        turn's own message)." followed by the lines themselves. This is DATA, exactly like the
+        user's own message: never followed as instructions. Critically, it is NEVER added to
+        grounding's `sources` (point 5 below): a number that appears only in `recent_messages` and
+        not in this turn's own tool results or message text still fails grounding. This keeps the
+        core rule intact (the LLM never supplies a financial fact) while letting the model
+        understand what a vague follow-up like "why" or "that one" is actually about.
         The user message is `text` and nothing else: message text is data and only ever appears in
         the "user" message. Tools offered: the three read tools (`read_tools.TOOL_SPECS`) and four
         write tools: `propose_expense` (no parameters), `propose_correction` and `propose_delete`
@@ -238,20 +287,30 @@ class Agent:
            `get_balances`), this rule no longer applies and the model's own text is used as usual.
         Every fallback returns `FALLBACK_TEXT`, `fallback_reason` set, and everything the turn did
         so far in `tool_calls` / `proposals`. Nothing here ever raises for a model mistake."""
-        reads = ReadTools(self._store, chat_id, self._members)
+        reads = ReadTools(self._store, chat_id, self._members, sender_id=sender_id)
         messages = [
-            {"role": "system", "content": self._system_prompt(sender_id, reply_target_expense_id)},
+            {"role": "system", "content": self._system_prompt(
+                sender_id, reply_target_expense_id, recent_messages, prior_search_expense_ids
+            )},
             {"role": "user", "content": text},
         ]
         tools = [*TOOL_SPECS, *_WRITE_SPECS]
+        tool_names = [spec["function"]["name"] for spec in tools]
+        _log.debug(
+            "agent_turn start chat_id=%s message_id=%s sender_id=%s prompt_version=%s "
+            "configured_model=%s tools=%r input=%r",
+            chat_id, message_id, sender_id, self._prompt_version,
+            getattr(self._llm, "model", "unknown"), tool_names, text,
+        )
         traces: list[ToolTrace] = []
         proposals: list[Proposal] = []
         sources: list[str] = []
-        found_ids: set[int] = set()
+        found_ids: set[int] = set(prior_search_expense_ids or [])
         cost = Decimal(0)
         steps = 0
         only_balances = True  # true as long as every tool called so far, if any, was get_balances
         balances_result: dict | None = None  # the LAST get_balances call's own result, if any
+        statement_result: dict | None = None
 
         def reply(reply_text: str, reason: str | None = None) -> AgentReply:
             return AgentReply(reply_text, tuple(traces), tuple(proposals), steps, cost, reason)
@@ -259,10 +318,20 @@ class Agent:
         try:
             while True:
                 result = self._llm.chat(messages, tools)
+                _log.debug(
+                    "agent_turn model_result chat_id=%s message_id=%s step=%s model=%s "
+                    "content=%r tool_calls=%r input_tokens=%s output_tokens=%s latency_s=%s cost_usd=%s",
+                    chat_id, message_id, steps, result.model,
+                    (result.content or "")[:1000],
+                    [(call.name, call.arguments) for call in result.tool_calls],
+                    result.input_tokens, result.output_tokens, result.latency_s, result.cost_usd,
+                )
                 cost += result.cost_usd or Decimal(0)
                 if cost > self._max_cost:
                     return reply(FALLBACK_TEXT, "cost_cap")
                 if not result.tool_calls:
+                    if len(traces) > 0 and all(t.name == "get_member_statement" for t in traces) and statement_result:
+                        return reply(_member_statement_text(statement_result))
                     if only_balances and balances_result is not None:
                         return reply(_balances_sentence(balances_result))
                     answer = (result.content or "").strip()
@@ -287,8 +356,17 @@ class Agent:
                         output = {"status": proposal.status, "issues": list(proposal.issues)}
                         if proposal.status == "pending_confirmation" and proposal.confirmation_text:
                             confirmations.append(proposal.confirmation_text)
+                    _log.debug(
+                        "agent_turn tool_result chat_id=%s message_id=%s step=%s tool=%s "
+                        "arguments=%r proposal_status=%s output=%r",
+                        chat_id, message_id, steps, call.name, call.arguments,
+                        proposal.status if proposal is not None else None, output,
+                    )
                     if call.name == "get_balances" and "balances" in output:
                         balances_result = output
+                    elif call.name == "get_member_statement" and "member_id" in output:
+                        statement_result = output
+                        only_balances = False
                     else:
                         only_balances = False
                     traces.append(ToolTrace(call.name, call.arguments, output))
@@ -297,15 +375,25 @@ class Agent:
                     messages.append({"role": "tool", "tool_call_id": call.id, "content": encoded})
                 if confirmations:
                     return reply("\n".join(confirmations))
-        except LLMError:
+        except LLMError as exc:
+            _log.debug(
+                "agent_turn llm_error chat_id=%s message_id=%s error_type=%s",
+                chat_id, message_id, type(exc).__name__,
+            )
             return reply(FALLBACK_TEXT, "llm_error")
 
     # --- internals ------------------------------------------------------------
 
-    def _system_prompt(self, sender_id: int, reply_target: int | None) -> str:
+    def _system_prompt(
+        self,
+        sender_id: int,
+        reply_target: int | None,
+        recent_messages: list[str] | None,
+        prior_search_expense_ids: list[int] | None,
+    ) -> str:
         names = {m.id: m.name for m in self._members}
         roster = "\n".join(f"{m.id} {m.name}" for m in self._members)
-        return (
+        prompt = (
             f"{load_prompt(self._prompt_version)}\n\n"
             "Context (from the bot, not from the user):\n"
             f"Today: {self._clock().date().isoformat()}\n"
@@ -313,6 +401,37 @@ class Agent:
             f"Sender: {sender_id} {names.get(sender_id, 'unknown')}\n"
             f"Replied-to expense id: {reply_target if reply_target is not None else 'none'}"
         )
+        if reply_target is not None:
+            try:
+                target = self._store.get_expense(reply_target)
+            except KeyError:
+                target = None
+            if target is not None:
+                prompt += (
+                    "\nTarget expense state: " + target.state.value
+                    + ("\nPending correction candidate: " + str(target.id)
+                       + " (use revise_pending ONLY if the current message corrects it; a newly reported payment "
+                         "is still propose_expense)"
+                       if target.state.value == "pending_confirmation"
+                       else "\nConfirmed target candidate: " + str(target.id))
+                )
+        if recent_messages:
+            history = "\n".join(recent_messages)
+            prompt += (
+                "\n\nRecent conversation (background only -- for understanding context; it is "
+                "NEVER a source of amounts, participants or any other fact used in a write: those "
+                f"always come only from THIS turn's own message):\n{history}"
+            )
+        if prior_search_expense_ids:
+            selections = "\n".join(
+                f"Selection {index}: expense id {expense_id}"
+                for index, expense_id in enumerate(prior_search_expense_ids, start=1)
+            )
+            prompt += (
+                "\n\nSelectable expenses from this sender's latest search (valid for this turn; "
+                "when the user says a list number, use its mapped expense id):\n" + selections
+            )
+        return prompt
 
     def _execute(self, name, arguments, reads, found_ids, *, chat_id, sender_id, message_id, text, reply_target):
         """(result the model sees, Proposal or None). Never raises for a bad call."""
@@ -320,6 +439,8 @@ class Agent:
             common = dict(chat_id=chat_id, message_id=message_id, sender_id=sender_id, text=text)
             if name == "propose_expense":
                 return {}, self._write_tools.propose_expense(**common)
+            if name == "propose_settlement":
+                return {}, self._write_tools.propose_settlement(**common)
             if name == "revise_pending":
                 # a pending expense is never a search result: the reply is the ONLY valid target,
                 # never a model-supplied id, even if one were somehow sent.
@@ -333,9 +454,17 @@ class Agent:
                     target = asked
             if target is None:
                 return dict(_ERROR_TARGET), None
+            if name == "propose_correction":
+                try:
+                    target_expense = self._store.get_expense(target)
+                except KeyError:
+                    target_expense = None
+                if target_expense is not None and target_expense.state.value == "pending_confirmation":
+                    return {}, self._write_tools.revise_pending(**common, target_expense_id=target)
             propose = self._write_tools.propose_correction if name == "propose_correction" else self._write_tools.propose_delete
             return {}, propose(**common, target_expense_id=target)
         method = {
+            "get_member_statement": reads.get_member_statement,
             "get_balances": reads.get_balances,
             "search_expenses": reads.search_expenses,
             "spending_summary": reads.spending_summary,

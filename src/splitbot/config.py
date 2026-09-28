@@ -91,6 +91,28 @@ def pending_expiry() -> timedelta:
     return timedelta(hours=_positive_number("PENDING_EXPIRY_HOURS", "1"))
 
 
+def db_path() -> str:
+    """Where the ledger's SQLite file lives: `DB_PATH`, default "splitbot.db" (relative to the
+    current working directory the bot is started from). ":memory:" is a valid value for a
+    throwaway run, but never used for the real bot: a restart would lose the whole ledger."""
+    return optional("DB_PATH", "splitbot.db")
+
+
+def router_ignore_threshold() -> float:
+    """The router's ignore/pass threshold (see `router.base.decide`): `ROUTER_IGNORE_THRESHOLD`,
+    default "0.485" -- the value chosen on dev and then fixed for the official Jev test-set run
+    (`results/router_jev_test_2026-09-26.json`, "threshold_chosen_on": "dev"). Read at call time.
+    Raises ConfigError when the value is not a finite number in [0, 1]."""
+    raw = optional("ROUTER_IGNORE_THRESHOLD", "0.485")
+    try:
+        value = float(raw)
+    except ValueError:
+        raise ConfigError("ROUTER_IGNORE_THRESHOLD must be a number") from None
+    if not math.isfinite(value) or not 0 <= value <= 1:
+        raise ConfigError("ROUTER_IGNORE_THRESHOLD must be between 0 and 1")
+    return value
+
+
 def agent_cost_cap() -> Decimal:
     """The most the agent model calls of ONE turn may cost, in dollars: `AGENT_MAX_COST_USD`, default
     "0.02". Read at call time. Raises ConfigError when the value is not a positive finite number."""

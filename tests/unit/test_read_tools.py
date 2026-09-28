@@ -294,8 +294,10 @@ def test_read_tools_answer_from_the_ledger_only_and_never_show_another_chat():
     with pytest.raises(ToolError):
         tools.spending_summary(by="colour")
 
-    # --- tool specs for the agent: exactly the three read tools
-    assert [spec["function"]["name"] for spec in TOOL_SPECS] == ["get_balances", "search_expenses", "spending_summary"]
+    # --- tool specs exposed to the agent
+    assert [spec["function"]["name"] for spec in TOOL_SPECS] == [
+        "get_member_statement", "get_balances", "search_expenses", "spending_summary"
+    ]
     for spec in TOOL_SPECS:
         assert set(spec) == {"type", "function"} and spec["type"] == "function"
         function = spec["function"]
@@ -305,7 +307,10 @@ def test_read_tools_answer_from_the_ledger_only_and_never_show_another_chat():
         assert isinstance(function["parameters"].get("properties", {}), dict)
     json.dumps(TOOL_SPECS)
     required = {s["function"]["name"]: s["function"]["parameters"].get("required", []) for s in TOOL_SPECS}
-    assert required == {"get_balances": [], "search_expenses": [], "spending_summary": ["by"]}
+    assert required == {
+        "get_member_statement": [], "get_balances": [],
+        "search_expenses": [], "spending_summary": ["by"]
+    }
     search_spec = next(s for s in TOOL_SPECS if s["function"]["name"] == "search_expenses")
     assert {"text", "category", "subcategory", "payer_id", "currency", "month", "min_total", "max_total", "limit"} <= set(
         search_spec["function"]["parameters"]["properties"]
@@ -361,3 +366,55 @@ def test_search_rejects_unreadable_or_ambiguous_amount_filters(argument, bad):
     with pytest.raises(ToolError):
         ReadTools(store, CHAT, MEMBERS).search_expenses(**{argument: bad})
     assert searched == []  # rejected before the ledger is touched
+
+
+def test_member_debt_statement_lists_per_expense_obligations_and_the_net_settlement():
+    """A statement preserves the useful "what for?" detail even when debts offset in the net."""
+    store = Store(":memory:")
+    coffee = _seed(
+        store, "Coffee", 3000, Currency.ILS, Subcategory.restaurant,
+        {ANN: 3000}, {ANN: 1500, BEN: 1500}, date(2026, 9, 20),
+    )
+    supplies = _seed(
+        store, "Supplies", 4000, Currency.ILS, Subcategory.supplies,
+        {BEN: 4000}, {ANN: 2000, BEN: 2000}, date(2026, 9, 21),
+    )
+
+    statement = ReadTools(store, CHAT, MEMBERS).get_member_statement(member_id=BEN)
+
+    assert (statement["member_id"], statement["member_name"]) == (BEN, "Ben")
+    assert statement["obligations"] == [{
+        "expense_id": coffee.id,
+        "description": "Coffee",
+        "spent_on": "2026-09-20",
+        "currency": "ILS",
+        "to": ANN,
+        "to_name": "Ann",
+        "amount": "15",
+        "amount_minor": 1500,
+    }]
+    assert statement["receivables"] == [{
+        "expense_id": supplies.id,
+        "description": "Supplies",
+        "spent_on": "2026-09-21",
+        "currency": "ILS",
+        "from": ANN,
+        "from_name": "Ann",
+        "amount": "20",
+        "amount_minor": 2000,
+    }]
+    assert statement["settlements"] == [{
+        "currency": "ILS",
+        "from": ANN,
+        "from_name": "Ann",
+        "to": BEN,
+        "to_name": "Ben",
+        "amount": "5",
+        "amount_minor": 500,
+    }]
+
+
+def test_member_debt_statement_is_exposed_as_a_read_tool_with_an_optional_member_id():
+    spec = next(spec for spec in TOOL_SPECS if spec["function"]["name"] == "get_member_statement")
+    assert spec["function"]["parameters"].get("required", []) == []
+    assert spec["function"]["parameters"]["properties"]["member_id"]["type"] == "integer"

@@ -89,7 +89,6 @@ def _extract_reply(message_type="new", *, amount="120", payer_id=1, participants
                     currency="ILS", refers_to=None, confidence="high", amount_in_words=False,
                     exact_amounts=None) -> str:
     data = {
-        "message_type": message_type,
         "confidence": confidence,
         "amount": None if amount is None else _ev(amount, amount),
         "amount_in_words": amount_in_words,
@@ -616,6 +615,28 @@ def test_run_all_with_run_label_suffixes_both_filenames_and_omitting_it_keeps_th
     assert plain_gallery.exists() and "_r1" not in plain_gallery.name
 
 
+def test_run_all_prompt_versions_have_distinct_filenames_and_metadata_so_they_cannot_overwrite(tmp_path):
+    results_dir = tmp_path / "results"
+    chat_v2, write_v2 = _fresh_factories()
+    path_v2 = run_agent_eval.run_all(
+        chat_factory=chat_v2, write_llm_factory=write_v2,
+        datasets_dir=run_agent_eval.DATASETS_DIR, results_dir=results_dir,
+        today=EVAL_TODAY, prompt_version="agent_v2",
+    )
+    chat_v3, write_v3 = _fresh_factories()
+    path_v3 = run_agent_eval.run_all(
+        chat_factory=chat_v3, write_llm_factory=write_v3,
+        datasets_dir=run_agent_eval.DATASETS_DIR, results_dir=results_dir,
+        today=EVAL_TODAY, prompt_version="agent_v3",
+    )
+
+    assert path_v2.name == f"agent_unknown_agent_v2_{EVAL_TODAY.isoformat()}.json"
+    assert path_v3.name == f"agent_unknown_agent_v3_{EVAL_TODAY.isoformat()}.json"
+    assert path_v2 != path_v3 and path_v2.exists() and path_v3.exists()
+    assert json.loads(path_v2.read_text(encoding="utf-8"))["prompt_version"] == "agent_v2"
+    assert json.loads(path_v3.read_text(encoding="utf-8"))["prompt_version"] == "agent_v3"
+
+
 def test_run_consistency_tracks_per_case_pass_rate_across_repeated_runs(tmp_path):
     results_dir = tmp_path / "results"
     counters = {"chat": 0, "llm": 0}
@@ -638,11 +659,13 @@ def test_run_consistency_tracks_per_case_pass_rate_across_repeated_runs(tmp_path
 
     path = run_agent_eval.run_consistency(chat_factory=chat_factory, write_llm_factory=write_llm_factory, runs=5,
                                           datasets_dir=run_agent_eval.DATASETS_DIR, results_dir=results_dir,
-                                          today=EVAL_TODAY)
+                                          today=EVAL_TODAY, prompt_version="agent_v3")
 
-    assert path.exists() and path.name.endswith("_consistency_5x.json")
+    assert path.exists()
+    assert path.name == f"agent_unknown_agent_v3_{EVAL_TODAY.isoformat()}_consistency_5x.json"
     data = json.loads(path.read_text(encoding="utf-8"))
     assert data["date"] == EVAL_TODAY.isoformat() and data["runs"] == 5 and data["n_cases"] == 11
+    assert data["prompt_version"] == "agent_v3"
     per_case = data["per_case"]
 
     assert per_case[alternating_case]["passed"] == 3 and per_case[alternating_case]["total"] == 5
@@ -658,8 +681,9 @@ def test_run_consistency_tracks_per_case_pass_rate_across_repeated_runs(tmp_path
     assert Decimal(data["total_cost_usd"]) == Decimal(0)  # our fakes report no cost
 
     for n in range(1, 6):
-        run_files = list(results_dir.glob(f"agent_*_r{n}.json"))
+        run_files = list(results_dir.glob(f"agent_*_agent_v3_*_r{n}.json"))
         assert len(run_files) == 1, f"expected exactly one run file for r{n}"
+        assert json.loads(run_files[0].read_text(encoding="utf-8"))["prompt_version"] == "agent_v3"
     summary_path = path.parent / (path.stem + "_gallery.md")
     assert summary_path.exists()
 

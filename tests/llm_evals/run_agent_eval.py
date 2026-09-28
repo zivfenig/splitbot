@@ -299,12 +299,12 @@ def run_case(
     chat: ChatLLM,
     write_llm: LLMClient,
     clock: Callable[[], "datetime"] | None = None,
-    prompt_version: str = "agent_v1",
+    prompt_version: str = "agent_v4",
 ) -> CaseResult:
     """Seed a fresh in-memory Store for `case`, build a real `WriteTools` (using `write_llm` as
     its extractor client, prompt_version "extract_v2") and a real `Agent` (using `chat`,
-    `prompt_version`, default "agent_v1"), both clocked at `EVAL_TODAY` noon UTC unless `clock`
-    is given,
+    `prompt_version`, default "agent_v4", the current runtime default), both clocked at
+    `EVAL_TODAY` noon UTC unless `clock` is given,
     call `run_turn` with the case's message/sender and `reply_to`'s resolved expense id (from
     `seed_world`), then grade the outcome per its `kind` (see the module docstring) against the
     resulting `AgentReply` and the store's state before/after the turn. Never raises for a
@@ -380,7 +380,9 @@ def attributions_present(text: str, expected: dict[str, str]) -> list[str]:
     each of those lines still correctly mentions X. Summing still catches a real regression
     (a swapped or invented number changes the sum), it just does not force the whole amount
     onto a single line."""
-    clauses = re.split(r"[,.\n]", text)
+    # A structured Telegram block intentionally puts names and the amount on separate
+    # lines. Keep those lines together; blank lines still separate distinct transfers.
+    clauses = re.split(r"[,．.]|\n\s*\n", text)
     failures = []
     for name, amount in expected.items():
         wanted = _value(amount)
@@ -584,17 +586,19 @@ def run_all(
     prices_path: Path | None = None,
     today: date = EVAL_TODAY,
     run_label: str | None = None,
-    prompt_version: str = "agent_v1",
+    prompt_version: str = "agent_v4",
 ) -> Path:
     """Load the cases IN FILE ORDER and run every one with `run_case` (agent prompt
-    `prompt_version`, default "agent_v1"), calling `chat_factory()` and `write_llm_factory()`
+    `prompt_version`, default "agent_v4", the current runtime default), calling `chat_factory()`
+    and `write_llm_factory()`
     exactly ONCE PER CASE (a fresh client from each factory per case, so one case's failure
     never taints another's token/cost accounting; `write_llm_factory` defaults to
     `chat_factory` when omitted, i.e. one real client for both roles), and write
-    `<results_dir>/agent_<model>_<today ISO>[_<run_label>].json` (creating the folder) plus the
+    `<results_dir>/agent_<model>_<prompt_version>_<today ISO>[_<run_label>].json` (creating the folder) plus the
     gallery at the same stem with `_gallery.md`. `run_label`, when given, is appended to BOTH
     file stems (e.g. "r1") so several runs on the same day never overwrite each other; omitted
-    (the default), the filenames are exactly as before. Returns the result file's path.
+    (the default), no run suffix is added. Including the prompt prevents one version's evaluation
+    from overwriting another version's evidence. Returns the result file's path.
 
     The JSON has: "date", "model" (the first call's model), "prompt_version", "prices"/
     "prices_sha" (as in `run_evals.run_split`), "n_cases", "report" (`build_report`'s dict),
@@ -638,7 +642,8 @@ def run_all(
     }
     results_dir.mkdir(parents=True, exist_ok=True)
     safe_model = (model or "unknown").replace("/", "_")
-    stem = f"agent_{safe_model}_{today.isoformat()}" + (f"_{run_label}" if run_label else "")
+    safe_prompt = prompt_version.replace("/", "_")
+    stem = f"agent_{safe_model}_{safe_prompt}_{today.isoformat()}" + (f"_{run_label}" if run_label else "")
     path = results_dir / f"{stem}.json"
     path.write_text(json.dumps(result_json, ensure_ascii=False, indent=2), encoding="utf-8")
     gallery_path = results_dir / f"{stem}_gallery.md"
@@ -662,12 +667,13 @@ def run_consistency(
     results_dir: Path = RESULTS_DIR,
     prices_path: Path | None = None,
     today: date = EVAL_TODAY,
-    prompt_version: str = "agent_v1",
+    prompt_version: str = "agent_v4",
 ) -> Path:
-    """Calls `run_all` `runs` times (agent prompt `prompt_version`; `run_label` "r1".."r<runs>",
+    """Calls `run_all` `runs` times (agent prompt `prompt_version`, default "agent_v4", the
+    current runtime default; `run_label` "r1".."r<runs>",
     so every individual run's own
     result file and gallery are kept, independently inspectable), and writes ONE combined report:
-    `<results_dir>/agent_<model>_<today ISO>_consistency_<runs>x.json`, plus a combined summary
+    `<results_dir>/agent_<model>_<prompt_version>_<today ISO>_consistency_<runs>x.json`, plus a combined summary
     at the same stem with `_gallery.md` (`build_consistency_summary`). Returns the combined
     report's path.
 
@@ -701,6 +707,7 @@ def run_consistency(
     result_json = {
         "date": today.isoformat(),
         "model": model,
+        "prompt_version": prompt_version,
         "runs": runs,
         "n_cases": len(cases),
         "per_case": per_case,
@@ -709,7 +716,8 @@ def run_consistency(
     }
     results_dir.mkdir(parents=True, exist_ok=True)
     safe_model = (model or "unknown").replace("/", "_")
-    stem = f"agent_{safe_model}_{today.isoformat()}_consistency_{runs}x"
+    safe_prompt = prompt_version.replace("/", "_")
+    stem = f"agent_{safe_model}_{safe_prompt}_{today.isoformat()}_consistency_{runs}x"
     combined_path = results_dir / f"{stem}.json"
     combined_path.write_text(json.dumps(result_json, ensure_ascii=False, indent=2), encoding="utf-8")
     (results_dir / f"{stem}_gallery.md").write_text(build_consistency_summary(cases, per_case, runs), encoding="utf-8")
@@ -762,7 +770,7 @@ def main(
     parser = argparse.ArgumentParser(prog="python -m tests.llm_evals.run_agent_eval")
     parser.add_argument("--yes", action="store_true", help="really call the LLM (costs money)")
     parser.add_argument("--repeat", type=int, default=1, help="run the whole suite N times for a consistency read")
-    parser.add_argument("--prompt", default="agent_v1", help="agent prompt version to use (default: agent_v1)")
+    parser.add_argument("--prompt", default="agent_v4", help="agent prompt version to use (default: agent_v4)")
     args = parser.parse_args(argv)
 
     try:

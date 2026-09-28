@@ -53,10 +53,11 @@ def settlement_transfers(balances: dict[int, int]) -> list[Transfer]:
 class ReadTools:
     """`members` gives the display names. All three tools return JSON-serializable dicts."""
 
-    def __init__(self, store: Store, chat_id: int, members: list[Member]):
+    def __init__(self, store: Store, chat_id: int, members: list[Member], sender_id: int | None = None):
         self._store = store
         self._chat_id = chat_id
         self._names = {m.id: m.name for m in members}
+        self._sender_id = sender_id
 
     def _name(self, user_id: int) -> str:
         return self._names.get(user_id, str(user_id))
@@ -173,6 +174,43 @@ class ReadTools:
             }
         return {"by": by, "month": month, "totals": totals}
 
+    def get_member_statement(self, *, member_id: int | None = None) -> dict:
+        """Per-expense obligations/receivables and the member's net settlement, all computed in code."""
+        user_id = member_id if member_id is not None else self._sender_id
+        if user_id is None or user_id not in self._names:
+            raise ToolError("member_id must name a member of this chat")
+        obligations, receivables = [], []
+        for expense in self._store.search_expenses(self._chat_id, limit=50):
+            payers = [share for share in expense.shares if share.paid > 0]
+            mine = next((share for share in expense.shares if share.user_id == user_id), None)
+            if len(payers) != 1 or mine is None:
+                continue
+            payer = payers[0]
+            common = {
+                "expense_id": expense.id, "description": expense.description,
+                "spent_on": expense.spent_on.isoformat(), "currency": expense.currency.value,
+            }
+            if user_id != payer.user_id and mine.owed > 0:
+                obligations.append({**common, "to": payer.user_id, "to_name": self._name(payer.user_id),
+                                    "amount": display_amount(mine.owed), "amount_minor": mine.owed})
+            if user_id == payer.user_id:
+                for share in expense.shares:
+                    if share.user_id != user_id and share.owed > 0:
+                        receivables.append({**common, "from": share.user_id, "from_name": self._name(share.user_id),
+                                            "amount": display_amount(share.owed), "amount_minor": share.owed})
+        settlements = []
+        for currency, balances in self._store.balances(self._chat_id).items():
+            for transfer in settlement_transfers(balances):
+                if user_id in (transfer.from_user, transfer.to_user):
+                    settlements.append({
+                        "currency": currency.value, "from": transfer.from_user,
+                        "from_name": self._name(transfer.from_user), "to": transfer.to_user,
+                        "to_name": self._name(transfer.to_user), "amount": display_amount(transfer.amount),
+                        "amount_minor": transfer.amount,
+                    })
+        return {"member_id": user_id, "member_name": self._name(user_id), "obligations": obligations,
+                "receivables": receivables, "settlements": settlements}
+
 
 def _minor_units(value: str | None, label: str) -> int | None:
     """A plain amount string ("150", "38.90") in minor units; the model never converts."""
@@ -208,6 +246,15 @@ _SUBCATEGORIES = [c.value for c in Subcategory]
 _CURRENCIES = [c.value for c in Currency]
 
 TOOL_SPECS: list[dict] = [
+    {
+        "type": "function",
+        "function": {
+            "name": "get_member_statement",
+            "description": "Explain what one member owes/is owed per expense, plus their net settlement. Omit member_id for the sender.",
+            "parameters": {"type": "object", "properties": {"member_id": {"type": "integer"}},
+                           "additionalProperties": False},
+        },
+    },
     {
         "type": "function",
         "function": {

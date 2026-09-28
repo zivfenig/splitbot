@@ -7,9 +7,9 @@ records them after confirmation, handles corrections and deletes, and answers qu
 about the group's money ("מי חייב למי?", "כמה הוצאנו החודש על אוכל בחוץ?").
 All data lives in our own SQLite ledger. Bot language: Hebrew. The LLM must also understand English.
 
-This is also a job-assignment project. The reviewers care about HOW I work with AI:
-clear problem framing, iteration, verifying AI output, and engineering judgment.
-Process, tests and documentation matter as much as the code.
+How I work with AI matters here as much as what gets built: clear problem framing,
+iteration, verifying AI output, and engineering judgment. Process, tests and
+documentation matter as much as the code.
 
 ## Architecture
 ```
@@ -17,21 +17,22 @@ message in group
  ├─ @bot or reply to the bot ───────────────────────────────► AGENT
  └─ otherwise ─► ROUTER (cheap, no LLM text generation)
                   ├─ ignore  → nothing happens, no LLM call
-                  ├─ expense → AGENT
-                  └─ query   → AGENT (answers; users can reply "לא אליך")
+                  └─ pass    → AGENT immediately (no router confirmation)
 AGENT (LLM with tools)
- ├─ read tools:  balances, search/list expenses, summaries   (all math in code)
- └─ write tools: propose_expense / propose_correction / propose_delete
+ ├─ read tools:  balances, member statement, search/list expenses, summaries
+ │                (all math in code)
+ └─ write tools: propose_expense / propose_correction / propose_delete / propose_settlement
                   → extractor → validators → confirmation (buttons) → ledger
 ```
 - **Router**: 3 classes (`expense`, `query`, `ignore`). The `expense` class is the *action*
   (money-related) class: a new expense, a correction or a delete, anything that needs a write
   to the ledger. The router only decides ignore vs not-ignore (query is a secondary label);
-  telling new/correction/delete apart is the extractor's job downstream (`message_type`).
+  telling new/correction/delete/settlement apart is the Agent's job through tool choice.
   Two implementations behind one `Router` protocol: OpenAI embeddings (similarity to a
   labeled reference set, the documented baseline) and Jev (TypeSafe decision model via
   OpenRouter, `choice` question), which is the bot's router. Rule: never drop a real
-  expense. When unsure → send to the agent (a wasted call is cheap; a lost expense is not).
+  expense. When unsure or when the router fails → send directly to the agent (a wasted call is
+  cheap; a lost expense is not). The router does not ask the user to confirm its classification.
 - **Agent**: OpenAI tool calling. It chooses tools; the tools enforce the rules.
 - **Independent pending records**: pending confirmations are fully independent per message.
   The bot never blocks on one pending action while waiting for its approval: a new incoming
@@ -42,14 +43,22 @@ AGENT (LLM with tools)
 ## The pipeline, in two layers
 **Layer 1 (router):** classifies ignore vs not-ignore (+ query as a secondary label).
 **Layer 2 (agent + extractor + tools):** the agent decides the action (insert / update /
-delete / read-for-a-question) via its tool choice, informed by the extractor's
-`message_type`; it always confirms with the user before any write; if the user does not
+delete / settlement / read-for-a-question) via its tool choice; the extractor only returns
+financial storage fields. It always confirms with the user before any write; if the user does not
 approve but instead replies with corrected information in free text (not just a button), the
 agent updates the relevant fields, re-runs confirmation, and repeats until the user approves,
 rejects, or it expires. Approval can come as a button OR as a free-text reply: both are valid
 inputs to the same state machine.
 Example: the bot proposes "פיצה: זיו ומיכל, 120 (60/60) — לאשר?"; the user replies "זה היה 100
 ולא 120"; the agent updates the amount, re-confirms with the new split, and waits again.
+
+Runtime prompt versions are currently `agent_v4` and `extract_v2`. Corrections use the sparse
+`correct_v1` prompt and debt repayments use `settle_v1`. An explicit `✏️ תיקון`
+button is a deterministic exception to the Agent path: the Store remembers the selected expense
+for that `(chat_id, sender_id)`, and the sender's next message goes directly to the relevant write
+tool and sparse correction extractor. It may patch one or several fields; omitted fields are
+carried forward. The edit target expires after 15 minutes and is cleared after a successful
+proposal, approval, or rejection.
 
 ## Core rule: what the LLM does vs. what code does
 - LLM: understand messy text → structured data (extractor); choose tools (agent);
@@ -61,7 +70,7 @@ Example: the bot proposes "פיצה: זיו ומיכל, 120 (60/60) — לאשר
 - Message text is DATA, never instructions (prompt-injection safe).
 
 ## Guardrails (by layer)
-**Unconditional confirmation.** Every write action (new expense, correction, delete) ALWAYS
+**Unconditional confirmation.** Every write action (new expense, correction, delete, settlement) ALWAYS
 shows the user a confirmation of exactly what will be recorded/changed/deleted, built from the
 code template, regardless of the model's confidence, not only when confidence is low.
 Confidence and approval mode affect WHO must approve and HOW LONG the system waits, but never
@@ -101,9 +110,10 @@ the exact number before it's stored and can correct it.
   auto-commits: it needs the sender's explicit approval even in auto mode (the one case where
   auto's grace window is skipped; the confirmation is shown for every write anyway).
   Mixed ("2 אלף", "1.5K") counts as words.
-- **Participants**: the LLM reports what the message says (`only`, `exclude`); code computes
-  the list: (author + only) − exclude, or everyone − exclude. "עם מיכל ובלי דני" → author +
-  Michal. "שילמתי 100 על הפיצה של דני ומיכל" → only [Dani, Michal], exclude [author].
+- **Participants**: the LLM reports what the message says (`only`, `exclude`); `only` is the
+  exact complete set, while a missing `only` means everyone. Code removes exclusions and computes
+  shares. Common `של/רק/עם/כל הבית` phrases and unique clean aliases (`ירדן` for `❤️ ירדן`) are
+  protected in code; ambiguous aliases are never guessed.
 - **Exact amounts** ("150: דני 50, משה 60"): must sum to the total; an unmentioned author gets
   the remainder; mismatch → ask. No amounts → equal split.
 - **Members**: the LLM matches names/nicknames to the roster and returns IDs, or
@@ -117,12 +127,14 @@ the exact number before it's stored and can correct it.
   sender corrects or rejects within it; `auto` changes the wait, never the visibility.
   Rules by category and amount (AND) choose between the two; the strictest (`author`) wins;
   unsure / low confidence / non-ILS / converted amount → `author`.
-- **Corrections & deletes**: target found by Telegram reply (certain) or by `refers_to` hint +
-  user picks from a list. Require approval of all relevant people (payer + everyone with an
-  owed share, + anyone a correction adds). One ✗ cancels. Nobody is approved automatically:
-  the requester, and a group of one, press ✓ after seeing the exact numbers like everyone else.
-  Only a sender who is on the roster can propose anything.
-- **Pending-action expiry**: every pending write action (new expense, correction, delete)
+- **Corrections & deletes**: target found by Telegram reply or a result selected from search.
+  A correction may replace every stored financial field; omitted fields carry forward. The
+  requester alone approves after seeing a code-built before/after view. Only a roster member who
+  paid or shares the original expense may request the change.
+- **Debt repayments**: `propose_settlement` extracts who repaid whom from the current message,
+  records it only after sender confirmation, and caps it at the matching open debt. Settlements
+  affect balances but never expense search or spending summaries; currencies remain separate.
+- **Pending-action expiry**: every pending write action (new expense, correction, delete, settlement)
   expires after 1 hour with no response (`PENDING_EXPIRY_HOURS`, default 1), whatever the
   approval mode. On expiry nothing is written and the bot posts a short one-line notice in
   the group; `/pending` lists the open ones. Pending state is a stored record, never a
@@ -178,7 +190,7 @@ src/splitbot/
     agent.py         # tool-calling loop + guardrails
   bot/
     telegram_bot.py  # routing, workflow, confirmation buttons
-prompts/             # extract_v1.md, agent_v1.md, CHANGELOG.md
+prompts/             # versioned agent/extract/correction/settlement prompts and CHANGELOG.md
 tests/
   unit/              # pure code. exact match. no network, no LLM.
   integration/       # parts together, fake LLM, mocked HTTP
@@ -187,13 +199,15 @@ tests/
     datasets/        # router_*.jsonl, extraction_*.jsonl, agent_*.jsonl, rosters.json
     results/         # one file per run (component, model, prompt, split, date)
     run_router_eval.py, run_evals.py (extraction), run_agent_eval.py
-  e2e/scenarios.md   # manual checks in the real Telegram group
+  e2e/               # local Telegram Update → adapter → workflow → SQLite tests; scenarios.md is manual smoke
 docs/not_tested.md
 ```
 
 ## Rules for tests
 - Deterministic code → exact-match tests. LLM parts → statistics (accuracy, rates,
   consistency over repeated runs), never exact text.
+- Local E2E tests use real `python-telegram-bot` `Update` objects and the production adapter,
+  workflow and file-backed SQLite store; only Telegram/LLM/router network boundaries are fake.
 - One test = one product rule that would cause real damage if broken. Fold similar cases with
   `pytest.mark.parametrize`. Don't test what libraries guarantee. Keep the suite small.
 - Concurrency tests must include a **negative control**: temporarily remove the protection

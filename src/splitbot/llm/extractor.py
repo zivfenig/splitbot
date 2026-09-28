@@ -37,6 +37,9 @@ class Extraction:
     issues: list[str]  # parse errors + check_members + check_grounding issues
     prompt_version: str
     llm_calls: list[LLMResult]  # 1 call, or 2 after a retry (cost/latency for the evals)
+    # Compatibility metadata returned by v1/v2 prompts. It is never part of the storage model;
+    # runtime v2 may populate it, while v3 always leaves it None.
+    legacy_message_type: str | None = None
 
 
 def load_prompt(version: str) -> str:
@@ -57,7 +60,8 @@ def extract(
     sender_id: int,
     members: list[Member],
     llm: LLMClient,
-    prompt_version: str = "extract_v1",
+    prompt_version: str = "extract_v2",
+    operation: Literal["create", "correct", "settle", "extract"] = "extract",
 ) -> Extraction:
     """Turn one chat message into an Extraction.
 
@@ -91,6 +95,7 @@ def extract(
     context = {
         "members": [{"id": m.id, "name": m.name} for m in members],
         "sender_id": sender_id,
+        "operation": operation,
         "message": message,
     }
     calls: list[LLMResult] = []
@@ -102,7 +107,11 @@ def extract(
         result = llm.complete(system, json.dumps(payload, ensure_ascii=False))
         calls.append(result)
         try:
-            expense = _parse_reply(result.text)
+            expense, legacy_message_type = _parse_reply(
+                result.text,
+                allow_legacy_message_type=prompt_version in {"extract_v1", "extract_v2"},
+                normalize_numeric_amount=prompt_version == "settle_v1",
+            )
         except _BadReply as exc:
             problems.append(str(exc))
             continue
@@ -115,6 +124,7 @@ def extract(
             issues=issues,
             prompt_version=prompt_version,
             llm_calls=calls,
+            legacy_message_type=legacy_message_type,
         )
     return Extraction(
         status="needs_clarification",
@@ -129,13 +139,30 @@ class _BadReply(ValueError):
     """The reply is not usable; the text says where, never what (no offending values)."""
 
 
-def _parse_reply(text: str) -> ExtractedExpense:
+def _parse_reply(
+    text: str, *, allow_legacy_message_type: bool = False, normalize_numeric_amount: bool = False
+) -> tuple[ExtractedExpense, str | None]:
     try:
         data = json.loads(text)
     except (ValueError, RecursionError):  # RecursionError: absurdly nested JSON
         raise _BadReply("the reply is not valid JSON") from None
+    legacy_message_type = None
+    if allow_legacy_message_type and isinstance(data, dict):
+        legacy_message_type = data.pop("message_type", None)
+    if normalize_numeric_amount and isinstance(data, dict):
+        amount = data.get("amount")
+        if isinstance(amount, dict):
+            value = amount.get("value")
+            # JSON has no monetary decimal type. This is representation normalization only:
+            # bool is excluded, and Pydantic plus money.parse_amount still validate the result.
+            if isinstance(value, (int, float)) and not isinstance(value, bool):
+                amount["value"] = str(value)
+            elif isinstance(value, str):
+                wrapped = re.fullmatch(r'["\'](\d+(?:[.,]\d{1,2})?)["\']', value.strip())
+                if wrapped is not None:
+                    amount["value"] = wrapped.group(1)
     try:
-        return ExtractedExpense.model_validate(data)
+        return ExtractedExpense.model_validate(data), legacy_message_type
     except ValidationError as exc:
         raise _BadReply(_error_summary(exc)) from None
     except RecursionError:

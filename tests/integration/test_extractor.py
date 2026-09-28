@@ -7,7 +7,7 @@ import pytest
 
 from splitbot.llm.client import LLMError
 from splitbot.llm.extractor import extract, load_prompt
-from splitbot.models import Confidence, Currency, ExtractedExpense, Member, MessageType, Subcategory
+from splitbot.models import Confidence, Currency, ExtractedExpense, Member, Subcategory
 from splitbot.validation import check_grounding, check_members
 from tests.fakes import FakeLLM
 
@@ -20,13 +20,12 @@ MEMBERS = [
 ROSTER_JSON = [{"id": m.id, "name": m.name} for m in MEMBERS]
 MESSAGE = "שילמתי 240 על פיצה עם מיכל"
 WORDS_MESSAGE = "שילמתי מאה וחמישים על פיצה עם מיכל"
-PROMPT_FILE = Path(__file__).resolve().parents[2] / "prompts" / "extract_v1.md"
+PROMPT_FILE = Path(__file__).resolve().parents[2] / "prompts" / "extract_v2.md"
 
 
 def reply_dict(**overrides) -> dict:
     """A fully valid, grounded reply for MESSAGE. Overrides replace whole top-level fields."""
     data = {
-        "message_type": "new",
         "confidence": "high",
         "amount": {"value": "240", "evidence": "240", "source": "message"},
         "currency": {"value": "ILS", "evidence": None, "source": "default"},
@@ -92,7 +91,7 @@ def test_at_most_one_retry_then_ok_or_needs_clarification(replies, status, n_cal
     assert len(fake.calls) == n_calls
     assert len(result.llm_calls) == n_calls
     assert all(c.input_tokens == 10 and c.model == "fake" for c in result.llm_calls)
-    assert result.prompt_version == "extract_v1"
+    assert result.prompt_version == "extract_v2"
 
     if status == "ok":
         assert result.issues == []
@@ -209,7 +208,7 @@ def test_llm_outage_is_not_hidden_as_a_clarification():
 
 
 def test_prompt_is_loaded_by_version_and_describes_every_extraction_field():
-    text = load_prompt("extract_v1")
+    text = load_prompt("extract_v2")
     assert text.strip()
 
     with pytest.raises(FileNotFoundError):
@@ -224,17 +223,22 @@ def test_prompt_is_loaded_by_version_and_describes_every_extraction_field():
     missing = [name for name in ExtractedExpense.model_fields if name not in text]
     assert missing == []
 
-    # every allowed enum value is spelled out (quoted) in the schema part, before the examples
+    # v2 is an approved legacy prompt: the parser strips its message_type compatibility field
+    # before validating the storage-only ExtractedExpense model.
     schema_part, examples_part = text.split("# Examples", 1)
-    for enum in (Subcategory, Currency, MessageType, Confidence):
+    for enum in (Subcategory, Currency, Confidence):
         absent = [m.value for m in enum if f'"{m.value}"' not in schema_part]
         assert absent == [], f"{enum.__name__} values missing from the prompt schema"
+    assert '"message_type"' in schema_part
+    assert all(f'"{value}"' in schema_part for value in ("new", "correction", "delete", "chat"))
 
-    # the few-shot examples themselves must be valid, grounded and use real member ids
     lines = examples_part.splitlines()
-    examples = [(ln[len("Message: "):], lines[i + 1]) for i, ln in enumerate(lines) if ln.startswith("Message: ")]
+    examples = [(line[len("Message: "):], lines[index + 1])
+                for index, line in enumerate(lines) if line.startswith("Message: ")]
     assert len(examples) >= 3
     for example_message, example_reply in examples:
-        expense = ExtractedExpense.model_validate_json(example_reply)
+        payload = json.loads(example_reply)
+        payload.pop("message_type")
+        expense = ExtractedExpense.model_validate(payload)
         assert check_members(expense, [1, 2, 3, 4]) == [], example_message
         assert check_grounding(expense, example_message, author_id=1) == [], example_message

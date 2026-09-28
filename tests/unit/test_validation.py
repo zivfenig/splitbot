@@ -22,22 +22,22 @@ def ambiguous(*candidates: int) -> dict:
     [
         ({}, [1, 2, 3, 4]),
         ({"exclude": [known(2)]}, [1, 3, 4]),
-        ({"only": [known(3)]}, [1, 3]),
+        ({"only": [known(3)]}, [3]),
         ({"only": [known(1)]}, [1]),
-        ({"only": [known(3)], "exclude": [known(2)]}, [1, 3]),
+        ({"only": [known(3)], "exclude": [known(2)]}, [3]),
         ({"exclude": [known(1)]}, [2, 3, 4]),
         # exclusions always apply, also to the `only` list
         ({"only": [known(2), known(3)], "exclude": [known(1)]}, [2, 3]),  # "the pizza of Dani and Moshe"
-        ({"only": [known(3), known(4)], "exclude": [known(3)]}, [1, 4]),
-        # nothing left (or only the author): the resolver returns the list, the workflow must ask
+        ({"only": [known(3), known(4)], "exclude": [known(3)]}, [4]),
+        # nothing left: the resolver returns the list, the workflow must ask
         ({"exclude": [known(1), known(2), known(3), known(4)]}, []),
         ({"only": [known(1)], "exclude": [known(1)]}, []),
-        ({"only": [known(3)], "exclude": [known(3)]}, [1]),
+        ({"only": [known(3)], "exclude": [known(3)]}, []),
     ],
     ids=[
         "neither_means_everyone",
         "exclude_means_everyone_except",
-        "only_means_author_plus_listed",
+        "only_means_exactly_the_listed_members",
         "only_author_appears_once",
         "only_and_exclude_are_both_applied",
         "excluding_the_author_removes_the_author",
@@ -45,7 +45,7 @@ def ambiguous(*candidates: int) -> dict:
         "exclusion_also_removes_someone_from_the_only_list",
         "excluding_everyone_gives_an_empty_list",
         "only_the_author_but_excluded_gives_an_empty_list",
-        "only_and_exclude_the_same_person_leaves_the_author",
+        "only_and_exclude_the_same_person_gives_an_empty_list",
     ],
 )
 def test_participants_are_built_by_code_from_only_and_exclude(raw, expected):
@@ -58,7 +58,6 @@ def test_participants_are_built_by_code_from_only_and_exclude(raw, expected):
 
 def base_extraction() -> dict:
     return {
-        "message_type": "new",
         "confidence": "high",
         "amount": {"value": "240", "evidence": "240", "source": "message"},
         "currency": {"value": "ILS", "evidence": None, "source": "default"},
@@ -141,10 +140,10 @@ def amount_field(value: str, evidence: str | None, source: str = "message") -> d
         (MESSAGE, {"amount": amount_field("240", "שילמתי")}, "numeric"),  # no number at all
         (MESSAGE, {"amount": amount_field("240", "240", source="default")}, "amount"),
         (MESSAGE, {"currency": {"value": "USD", "evidence": None, "source": "default"}}, "currency"),
-        (
-            "שילמתי 240$ על פיצה עם מיכל",
-            {"currency": {"value": "USD", "evidence": "$", "source": "message"}},
-            None,
+            (
+                "שילמתי 240$ על פיצה עם מיכל",
+                {"currency": {"value": "USD", "evidence": "$", "source": "message"}},
+                None,
         ),
         (MESSAGE, {"participants": participants_field(only=[known(3)]) | {"evidence": None}}, "participants"),
         (
@@ -157,10 +156,10 @@ def amount_field(value: str, evidence: str | None, source: str = "message") -> d
             {"exact_amounts": EXACT, "participants": None},
             "exact_amounts",  # "דני 50" is not in the message
         ),
-        (
-            "150: דני 50, משה 60",
-            {"amount": amount_field("150", "150"), "exact_amounts": EXACT, "participants": None},
-            None,
+            (
+                "150: דני 50, משה 60",
+                {"amount": amount_field("150", "150"), "exact_amounts": EXACT, "participants": None},
+                None,
         ),
         (
             "  Paid 240\nwith  MICHAL ",
@@ -187,7 +186,6 @@ def amount_field(value: str, evidence: str | None, source: str = "message") -> d
         (
             "sorry, it was 62 not 26",
             {
-                "message_type": "correction",
                 "amount": amount_field("62", "62"),
                 "refers_to": {"value": "26", "evidence": "26", "source": "message"},
                 "participants": None,
@@ -197,7 +195,6 @@ def amount_field(value: str, evidence: str | None, source: str = "message") -> d
         (
             "delete the groceries from monday",
             {
-                "message_type": "delete",
                 "amount": None,
                 "currency": None,
                 "payer": None,
@@ -213,7 +210,6 @@ def amount_field(value: str, evidence: str | None, source: str = "message") -> d
         (
             "sorry, it was 62 not 26",
             {
-                "message_type": "correction",
                 "amount": amount_field("62", "62"),
                 "refers_to": {"value": "27", "evidence": "27", "source": "message"},
                 "participants": None,
@@ -223,7 +219,6 @@ def amount_field(value: str, evidence: str | None, source: str = "message") -> d
         (
             "sorry, it was 62 not 26",
             {
-                "message_type": "correction",
                 "amount": amount_field("62", "62"),
                 "refers_to": {"value": "26", "evidence": "26", "source": "default"},
                 "participants": None,
@@ -233,7 +228,6 @@ def amount_field(value: str, evidence: str | None, source: str = "message") -> d
         (
             "sorry, it was 62 not 26",
             {
-                "message_type": "correction",
                 "amount": amount_field("62", "62"),
                 "refers_to": {"value": "26", "evidence": "   ", "source": "message"},
                 "participants": None,
@@ -243,24 +237,22 @@ def amount_field(value: str, evidence: str | None, source: str = "message") -> d
         (
             MESSAGE,
             {"refers_to": {"value": "פיצה", "evidence": "פיצה", "source": "message"}},
-            "refers_to",
+            None,
         ),
         (
             "sorry, it was 62 not 26",
             {
-                "message_type": "chat",
                 "amount": None,
                 "currency": None,
                 "payer": None,
                 "participants": None,
                 "refers_to": {"value": "26", "evidence": "26", "source": "message"},
             },
-            "refers_to",
+            None,
         ),
         (
             "sorry, it was 62 not 26",
             {
-                "message_type": "correction",
                 "amount": amount_field("62", "62"),
                 "refers_to": None,
                 "participants": None,

@@ -15,7 +15,7 @@ VALID = (
 REAL_PRICES = {
     "gpt-4o-mini": (Decimal("0.15"), Decimal("0.60")),
     "gpt-4o": (Decimal("2.50"), Decimal("10.00")),
-    "gpt-5.4-mini": (Decimal("0.2"), Decimal("1.25")),
+    "gpt-5.4-mini": (Decimal("0.75"), Decimal("4.50")),
     "text-embedding-3-small": (Decimal("0.02"), Decimal("0")),
     "typesafe/jev-1.13": (Decimal("0.042"), Decimal("0")),
 }

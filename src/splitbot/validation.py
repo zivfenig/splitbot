@@ -6,7 +6,7 @@ Order of use: check member references (real IDs, no ambiguity) -> resolve partic
 import re
 import unicodedata
 
-from splitbot.models import Currency, ExtractedExpense, KnownMember, MemberRef, MessageType, Participants
+from splitbot.models import Currency, ExtractedExpense, KnownMember, MemberRef, Participants
 from splitbot.money import parse_amount
 
 _NUMBER = re.compile(r"[0-9]+(?:[.,][0-9]+)*")
@@ -57,13 +57,13 @@ def _ids(refs: list[MemberRef], member_ids: list[int]) -> set[int]:
 def resolve_participants(participants: Participants, author_id: int, member_ids: list[int]) -> list[int]:
     """Final list of member IDs sharing the expense, in group order.
 
-    `only` present -> (author + `only`) minus `exclude`; otherwise everyone minus `exclude`.
-    Neither -> everyone. Exclusions always apply, also to the author ("the pizza of Dani and
-    Michal": only Dani + Michal, exclude the author -> the author paid and owes 0).
+    `only` present -> exactly `only` minus `exclude`; otherwise everyone minus `exclude`.
+    Neither -> everyone. Paying does not imply participating: "the pizza of Dani" can be paid
+    by the author while only Dani owes a share.
     The result can be EMPTY (everyone excluded): the caller must then ask, not split.
     """
     if participants.only is not None:
-        chosen = _ids(participants.only, member_ids) | {author_id}
+        chosen = _ids(participants.only, member_ids)
     else:
         chosen = set(member_ids)
     chosen -= _ids(participants.exclude, member_ids)
@@ -119,10 +119,12 @@ def check_grounding(extracted: ExtractedExpense, message: str, *, author_id: int
     `amount`. This is NOT a clarification by itself: no issue is raised just because the flag
     is True. When the flag is False, digitless evidence is an issue, as before.
 
-    `refers_to` (which expense a correction/delete means): its source must be "message" and its
-    evidence must be non-blank and found in the message; it must be null for message types
-    "new" and "chat" (present there = an issue). A null `refers_to` on a correction or delete
-    is fine (a Telegram reply can identify the target). Every issue about it names `refers_to`.
+    `refers_to` (which expense a correction/delete means): when present, its source must be
+    "message" and its evidence must be non-blank and found in the message. There is no
+    message-type-gated rule here any more (action selection is the Agent's tool choice, not
+    something the extractor reports): a null `refers_to` is always fine, including on a
+    correction or delete (a Telegram reply, or a search-result pick, can identify the target
+    instead). Every issue about it names `refers_to`.
     """
     text = normalize(message)
     issues: list[str] = []
@@ -165,8 +167,6 @@ def check_grounding(extracted: ExtractedExpense, message: str, *, author_id: int
 
     if extracted.refers_to:
         r = extracted.refers_to
-        if extracted.message_type in (MessageType.new, MessageType.chat):
-            issues.append("refers_to: only a correction or delete may say which expense it means")
         if r.source != "message":
             issues.append("refers_to: must come from the message")
         issues += _evidence_issues("refers_to", r.evidence, r.source, text)

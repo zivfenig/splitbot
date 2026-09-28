@@ -2,7 +2,7 @@
 needs the agent. The only thresholded decision is binary: `ignore` vs `pass` (to the agent).
 
 The class named "expense" is the router's ACTION / money-related class: a new expense, a
-correction or a delete. The router does not tell those apart (the extractor's message_type does).
+correction or a delete. The router does not tell those apart; the Agent chooses the tool.
 Rule: never drop a real expense. Any doubt or failure -> pass.
 """
 
